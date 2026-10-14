@@ -174,3 +174,7 @@ In the repository's **Settings → Pages**, set **Source** to **GitHub Actions**
 Push to `main`, or run the **Deploy to GitHub Pages** workflow manually. The
 workflow runs the tests, builds the app, and deploys `dist`. It needs no backend
 or secrets. For other static hosts, upload the contents of `dist`.
+
+Publishing the source repository directly skips Vite and causes module-loading
+errors. Relative asset URLs support `https://teuncm.nl/fourier-grid/`; the custom
+domain stays configured on the account's main Pages site.
