@@ -2,9 +2,9 @@ import { displayToIndex } from './grid.js'
 
 export function stretchFromDrag(dx, dy, size) {
   if (![dx, dy, size].every(Number.isFinite) || size < 1) throw new RangeError('Stretch drag must be finite and grid size positive.')
-  // Screen y points down: left/up expands, right/down compresses.
+  // Screen y points down: right/up expands, left/down compresses.
   const factor = distance => Math.exp(Math.max(-Math.log(8), Math.min(Math.log(8), distance / size * Math.log(4))))
-  const scaleX = factor(-dx), scaleY = factor(-dy)
+  const scaleX = factor(dx), scaleY = factor(-dy)
   return { a: scaleX, b: 0, c: 0, d: scaleY, scaleX, scaleY }
 }
 

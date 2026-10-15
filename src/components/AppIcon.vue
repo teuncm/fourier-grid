@@ -7,6 +7,8 @@ const paths = {
   square: 'M5 5h14v14H5Z',
   line: 'M4 18 20 6',
   wave: 'M5 4v16M12 4v16M19 4v16',
+  waveform: 'M2 12c2.5 0 2.5-7 5-7s2.5 14 5 14 2.5-14 5-14 2.5 7 5 7',
+  spectrum: 'M2 20h20M3 20v-5M7 20V9M12 20V4M17 20v-9M21 20v-4',
   gaussian: 'M3 19h18M3 18c6 0 5-13 9-13s3 13 9 13',
   rotation: 'M4 10a8 8 0 1 1 1 8M4 4v6h6M12 9v6M9 12h6',
   pan: 'M12 3v18M3 12h18m-7-7-2-2-2 2m4 14-2 2-2-2M5 10l-2 2 2 2m14-4 2 2-2 2',
@@ -25,6 +27,7 @@ const paths = {
   arrow: 'M4 12h16m-5-5 5 5-5 5',
   info: 'M12 11v6M12 7h.01',
   close: 'm6 6 12 12M6 18 18 6',
+  chevron: 'm6 9 6 6 6-6',
   spark: 'm12 3 2.5 6.5L21 12l-6.5 2.5L12 21l-2.5-6.5L3 12l6.5-2.5L12 3Z',
 }
 </script>

@@ -14,6 +14,7 @@ import { mirrorCanvasValues } from './lib/mirror.js'
 import { createDirtyRegion } from './lib/render.js'
 
 const size = ref(127)
+const controlsExpanded = ref(true)
 const spatial = shallowRef(createGrid(size.value))
 const frequency = shallowRef(createGrid(size.value))
 const spatialRevision = reactive({ real: 0, imaginary: 0 })
@@ -60,6 +61,7 @@ const brush = computed(() => ({ shape: brushShape.value, size: brushSize.value, 
 const brushValue = ref(1)
 const logarithmic = ref(true)
 const showGridLines = ref(true)
+const snapToGrid = ref(true)
 const realTime = ref(true)
 const phaseEnabled = ref(false)
 const phaseAllowed = computed(() => ['dot', 'square'].includes(brushShape.value))
@@ -466,7 +468,7 @@ function copyCanvas(domain, component) {
   const ranges = domain === 'spatial' ? spatialRanges : frequencyRanges
   clipboard.value = { size: size.value, values: grid[component].slice(), range: { ...ranges[component] } }
   copiedCanvas.value = `${domain}-${component}`
-  clipboardNotice.value = `Copied ${domain === 'spatial' ? 'drawing' : 'frequencies'}, ${component}, ${size.value} by ${size.value}.`
+  clipboardNotice.value = `Copied ${domain === 'spatial' ? 'spatial' : 'frequency'}, ${component}, ${size.value} by ${size.value}.`
   if (copyFeedbackTimer !== null) clearTimeout(copyFeedbackTimer)
   copyFeedbackTimer = setTimeout(() => { copiedCanvas.value = ''; copyFeedbackTimer = null }, 1600)
 }
@@ -488,7 +490,7 @@ function pasteCanvas(domain, component, inverted = false) {
   }
   changes[component].add({ left: 0, top: 0, right: size.value - 1, bottom: size.value - 1 })
   revisions[component]++
-  clipboardNotice.value = `Pasted${inverted ? ' inverted values' : ''} into ${domain === 'spatial' ? 'drawing' : 'frequencies'}, ${component}.`
+  clipboardNotice.value = `Pasted${inverted ? ' inverted values' : ''} into ${domain === 'spatial' ? 'spatial' : 'frequency'}, ${component}.`
   transform(domain)
 }
 
@@ -592,148 +594,157 @@ onBeforeUnmount(() => {
 
       <div class="workbench grid grid-cols-[204px_minmax(0,1fr)] gap-[27px] max-wide:grid-cols-[184px_minmax(0,1fr)] max-wide:gap-5 max-tablet:grid-cols-1">
         <aside class="control-panel" aria-label="Drawing controls">
-          <fieldset class="control-section tool-section" :disabled="locked || phaseEnabled || canvasBrush"><legend>Tool</legend><div class="tool-switch">
-            <button type="button" aria-label="Paint" title="Paint (B)" :class="{ active: tool === 'paint' }" :aria-pressed="tool === 'paint'" @click="tool = 'paint'"><AppIcon name="brush" /><span>Paint</span><kbd>B</kbd></button>
-            <button type="button" aria-label="Erase" title="Erase (E)" :class="{ active: tool === 'erase' }" :aria-pressed="tool === 'erase'" @click="tool = 'erase'"><AppIcon name="erase" /><span>Erase</span><kbd>E</kbd></button>
-          </div></fieldset>
-
-          <fieldset class="control-section" :disabled="locked || phaseEnabled || canvasBrush || tool === 'erase'"><legend>Draw mode</legend><div class="mode-switch brush-switch grid grid-cols-3 gap-1 max-tablet:grid-cols-2">
-            <button v-for="mode in ['wipe', 'paste', 'add']" :key="mode" type="button" :aria-label="`${mode[0].toUpperCase() + mode.slice(1)} values`" :aria-pressed="drawingMode === mode" :class="{ active: drawingMode === mode, 'max-tablet:col-span-2': mode === 'wipe' }" @click="drawingMode = mode"><span>{{ mode[0].toUpperCase() + mode.slice(1) }}</span></button>
-          </div></fieldset>
-
-          <fieldset class="control-section brush-section" :disabled="locked"><legend>Brush</legend><div class="brush-switch grid grid-cols-2 gap-1">
-            <template v-for="choice in brushChoices" :key="choice.shape">
-              <button type="button" :aria-label="`${choice.label} brush`" :aria-pressed="brushShape === choice.shape" :class="{ active: brushShape === choice.shape, 'col-span-2': choice.shape === 'gaussian' }" @click="selectBrush(choice.shape)"><AppIcon :name="choice.shape" :size="16" /><span>{{ choice.label }}</span></button>
-              <fieldset v-if="choice.shape === 'square'" class="phase-section col-span-2" aria-label="Phase rotation">
-                <label class="toggle-label compact-toggle-label"><input v-model="phaseEnabled" type="checkbox" aria-label="Phase rotation" :disabled="!phaseAllowed" @change="togglePhase" /><span class="toggle" aria-hidden="true"></span><span>Phase rotation</span></label>
-                <p v-if="phaseEnabled" class="mt-2 text-[10px] leading-relaxed text-[#8b9da6]">Drag up/down to rotate phase. The selection stays where you press. <span class="text-[#d9ece5]">{{ Math.round(phaseAngle) }}°</span></p>
-                <p v-else class="mt-2 text-[10px] leading-relaxed text-[#8b9da6]">Circle and Square only.</p>
-              </fieldset>
-            </template>
-          </div></fieldset>
-
-          <fieldset v-if="!['wave', 'gaussian', 'rotation', 'pan', 'stretch'].includes(brushShape)" class="control-section" :disabled="locked"><legend>{{ brushShape === 'line' ? 'Line width' : brushShape === 'square' ? 'Side length' : 'Diameter' }} <span class="control-value">{{ brushSize }} <span>px</span></span></legend>
-            <div class="size-control"><button class="icon-button" type="button" aria-label="Decrease brush size" :disabled="brushSize <= 1" @click="changeBrush(-2)"><AppIcon name="minus" :size="15" /></button><input v-model.number="brushSize" aria-label="Brush size" type="range" min="1" :max="brushMaximum" step="2" /><button class="icon-button" type="button" aria-label="Increase brush size" :disabled="brushSize >= brushMaximum" @click="changeBrush(2)"><AppIcon name="plus" :size="15" /></button></div>
-            <p class="control-hint">Use <kbd>[</kbd> / <kbd>]</kbd> or scroll to resize.</p>
-          </fieldset>
-
-          <fieldset v-if="rotatable" class="control-section" :disabled="locked">
-            <legend>{{ brushShape === 'square' ? 'Rotation' : 'Direction' }} <span class="control-value">{{ brushAngle }}°</span></legend>
-            <div class="rotation-control">
-              <button class="icon-button" type="button" :aria-label="`Rotate ${brushShape} counterclockwise`" title="Rotate −5°" @click="rotateBrush(-5)"><AppIcon name="minus" :size="15" /></button>
-              <input id="brush-angle" v-model.number="brushAngle" :aria-label="brushShape === 'square' ? 'Square rotation' : 'Brush direction'" type="range" min="0" max="180" step="5" />
-              <button class="icon-button" type="button" :aria-label="`Rotate ${brushShape} clockwise`" title="Rotate +5°" @click="rotateBrush(5)"><AppIcon name="plus" :size="15" /></button>
-            </div>
-            <p class="control-hint">Ctrl+scroll over a grid to rotate.</p>
-          </fieldset>
-          <fieldset v-if="brushShape === 'wave'" class="control-section" :disabled="locked">
-            <legend>Frequency <span class="control-value">{{ waveFrequency }}</span></legend>
-            <div class="slider-control">
-              <button class="icon-button" type="button" aria-label="Decrease wave frequency" title="Decrease by 0.5 cycles" :disabled="waveFrequency <= 0.5" @click="changeWaveFrequency(-0.5)"><AppIcon name="minus" :size="15" /></button>
-              <input v-model.number="waveFrequency" aria-label="Wave frequency" type="range" min="0.5" :max="size / 2" step="0.5" />
-              <button class="icon-button" type="button" aria-label="Increase wave frequency" title="Increase by 0.5 cycles" :disabled="waveFrequency >= size / 2" @click="changeWaveFrequency(0.5)"><AppIcon name="plus" :size="15" /></button>
-            </div>
-            <p class="mt-1 text-[9px] text-muted">Cycles per grid</p><p class="control-hint">Scroll over a grid to adjust.</p>
-          </fieldset>
-
-          <fieldset v-if="brushShape === 'gaussian'" class="control-section" :disabled="locked">
-            <legend title="Standard deviation (σ)">Std. dev. <span class="control-value">{{ gaussianSigma }} <span>px</span></span></legend>
-            <div class="slider-control">
-              <button class="icon-button" type="button" aria-label="Decrease Gaussian standard deviation" title="Decrease σ by 0.5 pixels" :disabled="gaussianSigma <= 0.5" @click="changeGaussianSigma(-0.5)"><AppIcon name="minus" :size="15" /></button>
-              <input v-model.number="gaussianSigma" aria-label="Gaussian standard deviation" type="range" min="0.5" :max="size / 2" step="0.5" />
-              <button class="icon-button" type="button" aria-label="Increase Gaussian standard deviation" title="Increase σ by 0.5 pixels" :disabled="gaussianSigma >= size / 2" @click="changeGaussianSigma(0.5)"><AppIcon name="plus" :size="15" /></button>
-            </div>
-            <p class="control-hint">Scroll or <kbd>[</kbd> / <kbd>]</kbd> to adjust σ.</p>
-          </fieldset>
-
-          <fieldset class="control-section value-section" :disabled="locked || phaseEnabled || canvasBrush"><legend>Paint value <span class="control-value">{{ brushValue > 0 ? '+' : '' }}{{ brushValue.toFixed(1) }}</span></legend>
-            <div class="slider-control">
-              <button class="icon-button" type="button" aria-label="Decrease paint value" title="Decrease by 0.1" :disabled="brushValue <= -1" @click="changePaintValue(-0.1)"><AppIcon name="minus" :size="15" /></button>
-              <input v-model.number="brushValue" aria-label="Paint value" type="range" min="-1" max="1" step="0.1" />
-              <button class="icon-button" type="button" aria-label="Increase paint value" title="Increase by 0.1" :disabled="brushValue >= 1" @click="changePaintValue(0.1)"><AppIcon name="plus" :size="15" /></button>
-            </div>
-            <div class="value-scale"><span class="negative-label">−1</span><span>0</span><span class="positive-label">+1</span></div>
-            <p class="control-hint">Shift+scroll over a grid to adjust.</p>
-          </fieldset>
-
-          <fieldset class="control-section manipulation-section" :disabled="locked"><legend>Manipulate</legend><div class="brush-switch grid grid-cols-2 gap-1">
-            <button v-for="choice in manipulationChoices" :key="choice.shape" type="button" :aria-label="`${choice.label} canvas`" :aria-pressed="brushShape === choice.shape" :class="{ active: brushShape === choice.shape, 'col-span-2': choice.shape === 'stretch' }" @click="selectBrush(choice.shape)"><AppIcon :name="choice.shape" :size="16" /><span>{{ choice.label }}</span></button>
-          </div></fieldset>
-
-          <fieldset v-if="stretchBrush" class="control-section stretch-controls">
-            <legend>Canvas stretch</legend>
-            <p class="text-[10px] leading-relaxed text-[#8b9da6]">Pinned to the origin. Drag left to stretch X, or up to stretch Y. Right/down shrinks.</p>
-            <p class="mt-1 font-mono text-[10px]"><span :class="stretchScales.x >= 1 ? 'text-positive' : 'text-negative'">X {{ stretchScales.x.toFixed(2) }}×</span> · <span :class="stretchScales.y >= 1 ? 'text-positive' : 'text-negative'">Y {{ stretchScales.y.toFixed(2) }}×</span></p>
-          </fieldset>
-          <fieldset v-if="panBrush" class="control-section">
-            <legend>Canvas pan <span class="control-value">{{ panOffset.x }}, {{ panOffset.y }} <span>px</span></span></legend>
-            <p class="text-[10px] leading-relaxed text-[#8b9da6]">Drag to move pixels. Edges wrap in both directions.</p>
-          </fieldset>
-          <fieldset v-if="rotationBrush" class="control-section">
-            <legend>Canvas rotation <span class="control-value">{{ Math.round(canvasAngle) }}°</span></legend>
-            <p class="text-[10px] leading-relaxed text-[#8b9da6]">Drag up ↶ or down ↷. One canvas-height = 360°.</p>
-          </fieldset>
-
-          <fieldset class="control-section" aria-label="Symmetry" :disabled="locked">
-            <label class="toggle-label compact-toggle-label"><input v-model="symmetryEnabled" type="checkbox" aria-label="Rotational symmetry" @change="toggleSymmetry" /><span class="toggle" aria-hidden="true"></span><span>Symmetry</span></label>
-          </fieldset>
-          <fieldset v-if="symmetryEnabled" class="control-section" :disabled="locked">
-            <legend>Slices <span class="control-value">{{ symmetrySlices }}</span></legend>
-            <div class="slider-control">
-              <button class="icon-button" type="button" aria-label="Decrease symmetry slices" :disabled="symmetrySlices <= 2" @click="changeSymmetrySlices(-1)"><AppIcon name="minus" :size="15" /></button>
-              <input v-model.number="symmetrySlices" aria-label="Symmetry slices" type="range" min="2" max="24" step="1" />
-              <button class="icon-button" type="button" aria-label="Increase symmetry slices" :disabled="symmetrySlices >= 24" @click="changeSymmetrySlices(1)"><AppIcon name="plus" :size="15" /></button>
-            </div>
-          </fieldset>
-          <fieldset v-if="symmetryEnabled" class="control-section" :disabled="locked">
-            <legend>Slice angle <span class="control-value">{{ symmetryAngle }}°</span></legend>
-            <div class="slider-control">
-              <button class="icon-button" type="button" aria-label="Decrease symmetry rotation" title="Rotate slices −5°" @click="changeSymmetryAngle(-5)"><AppIcon name="minus" :size="15" /></button>
-              <input v-model.number="symmetryAngle" aria-label="Symmetry rotation" type="range" min="0" max="360" step="5" />
-              <button class="icon-button" type="button" aria-label="Increase symmetry rotation" title="Rotate slices +5°" @click="changeSymmetryAngle(5)"><AppIcon name="plus" :size="15" /></button>
-            </div>
-            <p class="control-hint">Rotate the slice boundaries.</p>
-          </fieldset>
-          <fieldset v-for="{ axis, label, count } in repeatAxes" :key="axis" class="control-section" :aria-label="label" :disabled="locked || size < 2">
-            <label class="toggle-label compact-toggle-label"><input v-model="repeatEnabled[axis]" type="checkbox" :aria-label="label" @change="toggleRepeat(axis)" /><span class="toggle" aria-hidden="true"></span><span>{{ label }}</span></label>
-            <template v-if="repeatEnabled[axis]">
-              <label class="mt-3" :for="`repeat-${axis}`">{{ count }} <span class="control-value">{{ repeatCounts[axis] }}</span></label>
-              <div class="slider-control">
-                <button class="icon-button" type="button" :aria-label="`Decrease repeat ${count.toLowerCase()}`" :disabled="repeatCounts[axis] <= 2" @click="changeRepeat(axis, -1)"><AppIcon name="minus" :size="15" /></button>
-                <input :id="`repeat-${axis}`" v-model.number="repeatCounts[axis]" :aria-label="`Repeat ${count.toLowerCase()}`" type="range" min="2" :max="repeatMaximum" step="1" />
-                <button class="icon-button" type="button" :aria-label="`Increase repeat ${count.toLowerCase()}`" :disabled="repeatCounts[axis] >= repeatMaximum" @click="changeRepeat(axis, 1)"><AppIcon name="plus" :size="15" /></button>
-              </div>
-            </template>
-          </fieldset>
-          <div class="control-section settings-section"><label for="resolution">Grid size</label><div class="select-wrap"><select id="resolution" :value="size" :disabled="locked" @change="resize"><option v-for="resolution in [1, 2, 3, 4, 7, 8, 15, 16, 31, 32, 63, 64, 127, 128, 255, 256, 511, 512, 1023, 1024]" :key="resolution" :value="resolution">{{ resolution }} × {{ resolution }}</option></select></div><p class="control-hint">Changing size resets the grids.</p>
+          <div class="control-section grid-size-section"><label for="resolution">Grid size</label><div class="select-wrap"><select id="resolution" :value="size" :disabled="locked" @change="resize"><option v-for="resolution in [1, 2, 3, 4, 7, 8, 15, 16, 31, 32, 63, 64, 127, 128, 255, 256, 511, 512, 1023, 1024]" :key="resolution" :value="resolution">{{ resolution }} × {{ resolution }}</option></select></div><p class="control-hint">Changing size resets the grids.</p>
           </div>
           <div class="control-section clear-controls">
             <div class="settings-toggles">
               <label class="toggle-label"><input v-model="realTime" :disabled="locked" type="checkbox" aria-label="Live updates" /><span class="toggle" aria-hidden="true"></span><span>Live updates</span></label>
               <label class="toggle-label"><input v-model="logarithmic" type="checkbox" aria-label="Boost faint values" /><span class="toggle" aria-hidden="true"></span><span>Boost faint values</span></label>
               <label class="toggle-label"><input v-model="showGridLines" type="checkbox" aria-label="Show grid lines" /><span class="toggle" aria-hidden="true"></span><span>Show grid lines</span></label>
+              <label class="toggle-label"><input v-model="snapToGrid" type="checkbox" aria-label="Snap to grid" /><span class="toggle" aria-hidden="true"></span><span>Snap to grid</span></label>
             </div>
-            <button class="clear-button" type="button" :disabled="locked" @click="clear"><AppIcon name="reset" :size="16" /> Clear all grids</button>
+            <button class="clear-button" type="button" aria-label="Clear all grids" title="Clear all grids" :disabled="locked" @click="clear"><AppIcon name="trash" :size="15" /><span>Clear all</span></button>
+          </div>
+          <button class="controls-toggle" type="button" :aria-expanded="controlsExpanded" aria-controls="editor-controls" :aria-label="controlsExpanded ? 'Collapse tools' : 'Expand tools'" @click="controlsExpanded = !controlsExpanded">
+            <span>Tools</span><AppIcon name="chevron" :size="14" :class="{ 'rotate-180': controlsExpanded }" />
+          </button>
+          <div id="editor-controls" v-show="controlsExpanded" class="controls-body">
+
+            <fieldset class="control-section tool-section" aria-label="Paint and erase" :disabled="locked || phaseEnabled || canvasBrush"><div class="tool-switch">
+              <button type="button" aria-label="Paint" title="Paint (B)" :class="{ active: tool === 'paint' }" :aria-pressed="tool === 'paint'" @click="tool = 'paint'"><AppIcon name="brush" /><span>Paint</span><kbd>B</kbd></button>
+              <button type="button" aria-label="Erase" title="Erase (E)" :class="{ active: tool === 'erase' }" :aria-pressed="tool === 'erase'" @click="tool = 'erase'"><AppIcon name="erase" /><span>Erase</span><kbd>E</kbd></button>
+            </div></fieldset>
+
+            <fieldset class="control-section" :disabled="locked || phaseEnabled || canvasBrush || tool === 'erase'"><legend>Draw mode</legend><div class="mode-switch brush-switch grid grid-cols-3 gap-1 max-tablet:grid-cols-2">
+              <button v-for="mode in ['wipe', 'paste', 'add']" :key="mode" type="button" :aria-label="`${mode[0].toUpperCase() + mode.slice(1)} values`" :aria-pressed="drawingMode === mode" :class="{ active: drawingMode === mode, 'max-tablet:col-span-2': mode === 'wipe' }" @click="drawingMode = mode"><span>{{ mode[0].toUpperCase() + mode.slice(1) }}</span></button>
+            </div></fieldset>
+
+            <fieldset class="control-section brush-section" :disabled="locked"><legend>Brush</legend><div class="brush-switch grid grid-cols-2 gap-1">
+              <template v-for="choice in brushChoices" :key="choice.shape">
+                <button type="button" :aria-label="`${choice.label} brush`" :aria-pressed="brushShape === choice.shape" :class="{ active: brushShape === choice.shape, 'col-span-2': choice.shape === 'gaussian' }" @click="selectBrush(choice.shape)"><AppIcon :name="choice.shape" :size="16" /><span>{{ choice.label }}</span></button>
+                <fieldset v-if="choice.shape === 'square'" class="phase-section col-span-2" aria-label="Phase rotation">
+                  <label class="toggle-label compact-toggle-label"><input v-model="phaseEnabled" type="checkbox" aria-label="Phase rotation" :disabled="!phaseAllowed" @change="togglePhase" /><span class="toggle" aria-hidden="true"></span><span>Phase rotation</span></label>
+                  <p v-if="phaseEnabled" class="mt-2 text-[10px] leading-relaxed text-[#8b9da6]">Drag up/down to rotate phase. The selection stays where you press. <span class="text-[#d9ece5]">{{ Math.round(phaseAngle) }}°</span></p>
+                  <p v-else class="mt-2 text-[10px] leading-relaxed text-[#8b9da6]">Circle and Square only.</p>
+                </fieldset>
+              </template>
+            </div></fieldset>
+
+            <fieldset v-if="!['wave', 'gaussian', 'rotation', 'pan', 'stretch'].includes(brushShape)" class="control-section" :disabled="locked"><legend>{{ brushShape === 'line' ? 'Line width' : brushShape === 'square' ? 'Side length' : 'Diameter' }} <span class="control-value">{{ brushSize }} <span>px</span></span></legend>
+              <div class="size-control"><button class="icon-button" type="button" aria-label="Decrease brush size" :disabled="brushSize <= 1" @click="changeBrush(-2)"><AppIcon name="minus" :size="15" /></button><input v-model.number="brushSize" aria-label="Brush size" type="range" min="1" :max="brushMaximum" step="2" /><button class="icon-button" type="button" aria-label="Increase brush size" :disabled="brushSize >= brushMaximum" @click="changeBrush(2)"><AppIcon name="plus" :size="15" /></button></div>
+              <p class="control-hint">Use <kbd>[</kbd> / <kbd>]</kbd> or scroll to resize.</p>
+            </fieldset>
+
+            <fieldset v-if="rotatable" class="control-section" :disabled="locked">
+              <legend>{{ brushShape === 'square' ? 'Rotation' : 'Direction' }} <span class="control-value">{{ brushAngle }}°</span></legend>
+              <div class="rotation-control">
+                <button class="icon-button" type="button" :aria-label="`Rotate ${brushShape} counterclockwise`" title="Rotate −5°" @click="rotateBrush(-5)"><AppIcon name="minus" :size="15" /></button>
+                <input id="brush-angle" v-model.number="brushAngle" :aria-label="brushShape === 'square' ? 'Square rotation' : 'Brush direction'" type="range" min="0" max="180" step="5" />
+                <button class="icon-button" type="button" :aria-label="`Rotate ${brushShape} clockwise`" title="Rotate +5°" @click="rotateBrush(5)"><AppIcon name="plus" :size="15" /></button>
+              </div>
+              <p class="control-hint">Ctrl+scroll over a grid to rotate.</p>
+            </fieldset>
+            <fieldset v-if="brushShape === 'wave'" class="control-section" :disabled="locked">
+              <legend>Frequency <span class="control-value">{{ waveFrequency }}</span></legend>
+              <div class="slider-control">
+                <button class="icon-button" type="button" aria-label="Decrease wave frequency" title="Decrease by 0.5 cycles" :disabled="waveFrequency <= 0.5" @click="changeWaveFrequency(-0.5)"><AppIcon name="minus" :size="15" /></button>
+                <input v-model.number="waveFrequency" aria-label="Wave frequency" type="range" min="0.5" :max="size / 2" step="0.5" />
+                <button class="icon-button" type="button" aria-label="Increase wave frequency" title="Increase by 0.5 cycles" :disabled="waveFrequency >= size / 2" @click="changeWaveFrequency(0.5)"><AppIcon name="plus" :size="15" /></button>
+              </div>
+              <p class="mt-1 text-[9px] text-muted">Cycles per grid</p><p class="control-hint">Scroll over a grid to adjust.</p>
+            </fieldset>
+
+            <fieldset v-if="brushShape === 'gaussian'" class="control-section" :disabled="locked">
+              <legend title="Standard deviation (σ)">Std. dev. <span class="control-value">{{ gaussianSigma }} <span>px</span></span></legend>
+              <div class="slider-control">
+                <button class="icon-button" type="button" aria-label="Decrease Gaussian standard deviation" title="Decrease σ by 0.5 pixels" :disabled="gaussianSigma <= 0.5" @click="changeGaussianSigma(-0.5)"><AppIcon name="minus" :size="15" /></button>
+                <input v-model.number="gaussianSigma" aria-label="Gaussian standard deviation" type="range" min="0.5" :max="size / 2" step="0.5" />
+                <button class="icon-button" type="button" aria-label="Increase Gaussian standard deviation" title="Increase σ by 0.5 pixels" :disabled="gaussianSigma >= size / 2" @click="changeGaussianSigma(0.5)"><AppIcon name="plus" :size="15" /></button>
+              </div>
+              <p class="control-hint">Scroll or <kbd>[</kbd> / <kbd>]</kbd> to adjust σ.</p>
+            </fieldset>
+
+            <fieldset class="control-section value-section" :disabled="locked || phaseEnabled || canvasBrush"><legend>Paint value <span class="control-value">{{ brushValue > 0 ? '+' : '' }}{{ brushValue.toFixed(1) }}</span></legend>
+              <div class="slider-control">
+                <button class="icon-button" type="button" aria-label="Decrease paint value" title="Decrease by 0.1" :disabled="brushValue <= -1" @click="changePaintValue(-0.1)"><AppIcon name="minus" :size="15" /></button>
+                <input v-model.number="brushValue" aria-label="Paint value" type="range" min="-1" max="1" step="0.1" />
+                <button class="icon-button" type="button" aria-label="Increase paint value" title="Increase by 0.1" :disabled="brushValue >= 1" @click="changePaintValue(0.1)"><AppIcon name="plus" :size="15" /></button>
+              </div>
+              <div class="value-scale"><span class="negative-label">−1</span><span>0</span><span class="positive-label">+1</span></div>
+              <p class="control-hint">Shift+scroll over a grid to adjust.</p>
+            </fieldset>
+
+            <fieldset class="control-section manipulation-section" :disabled="locked"><legend>Manipulate</legend><div class="brush-switch grid grid-cols-2 gap-1">
+              <button v-for="choice in manipulationChoices" :key="choice.shape" type="button" :aria-label="`${choice.label} canvas`" :aria-pressed="brushShape === choice.shape" :class="{ active: brushShape === choice.shape, 'col-span-2': choice.shape === 'stretch' }" @click="selectBrush(choice.shape)"><AppIcon :name="choice.shape" :size="16" /><span>{{ choice.label }}</span></button>
+            </div></fieldset>
+
+            <fieldset v-if="stretchBrush" class="control-section stretch-controls">
+              <legend>Canvas stretch</legend>
+              <p class="text-[10px] leading-relaxed text-[#8b9da6]">Pinned to the origin. Drag right to stretch X, or up to stretch Y. Left/down shrinks.</p>
+              <p class="mt-1 font-mono text-[10px]"><span :class="stretchScales.x >= 1 ? 'text-positive' : 'text-negative'">X {{ stretchScales.x.toFixed(2) }}×</span> · <span :class="stretchScales.y >= 1 ? 'text-positive' : 'text-negative'">Y {{ stretchScales.y.toFixed(2) }}×</span></p>
+            </fieldset>
+            <fieldset v-if="panBrush" class="control-section">
+              <legend>Canvas pan <span class="control-value">{{ panOffset.x }}, {{ panOffset.y }} <span>px</span></span></legend>
+              <p class="text-[10px] leading-relaxed text-[#8b9da6]">Drag to move pixels. Edges wrap in both directions.</p>
+            </fieldset>
+            <fieldset v-if="rotationBrush" class="control-section">
+              <legend>Canvas rotation <span class="control-value">{{ Math.round(canvasAngle) }}°</span></legend>
+              <p class="text-[10px] leading-relaxed text-[#8b9da6]">Drag up ↶ or down ↷. One canvas-height = 360°.</p>
+            </fieldset>
+
+            <fieldset class="control-section" :class="{ 'is-inactive-toggle': !symmetryEnabled }" aria-label="Symmetry" :disabled="locked">
+              <label class="toggle-label compact-toggle-label"><input v-model="symmetryEnabled" type="checkbox" aria-label="Rotational symmetry" @change="toggleSymmetry" /><span class="toggle" aria-hidden="true"></span><span>Symmetry</span></label>
+            </fieldset>
+            <fieldset v-if="symmetryEnabled" class="control-section" :disabled="locked">
+              <legend>Slices <span class="control-value">{{ symmetrySlices }}</span></legend>
+              <div class="slider-control">
+                <button class="icon-button" type="button" aria-label="Decrease symmetry slices" :disabled="symmetrySlices <= 2" @click="changeSymmetrySlices(-1)"><AppIcon name="minus" :size="15" /></button>
+                <input v-model.number="symmetrySlices" aria-label="Symmetry slices" type="range" min="2" max="24" step="1" />
+                <button class="icon-button" type="button" aria-label="Increase symmetry slices" :disabled="symmetrySlices >= 24" @click="changeSymmetrySlices(1)"><AppIcon name="plus" :size="15" /></button>
+              </div>
+            </fieldset>
+            <fieldset v-if="symmetryEnabled" class="control-section" :disabled="locked">
+              <legend>Slice angle <span class="control-value">{{ symmetryAngle }}°</span></legend>
+              <div class="slider-control">
+                <button class="icon-button" type="button" aria-label="Decrease symmetry rotation" title="Rotate slices −5°" @click="changeSymmetryAngle(-5)"><AppIcon name="minus" :size="15" /></button>
+                <input v-model.number="symmetryAngle" aria-label="Symmetry rotation" type="range" min="0" max="360" step="5" />
+                <button class="icon-button" type="button" aria-label="Increase symmetry rotation" title="Rotate slices +5°" @click="changeSymmetryAngle(5)"><AppIcon name="plus" :size="15" /></button>
+              </div>
+              <p class="control-hint">Rotate the slice boundaries.</p>
+            </fieldset>
+            <fieldset v-for="{ axis, label, count } in repeatAxes" :key="axis" class="control-section" :class="{ 'is-inactive-toggle': !repeatEnabled[axis] }" :aria-label="label" :disabled="locked || size < 2">
+              <label class="toggle-label compact-toggle-label"><input v-model="repeatEnabled[axis]" type="checkbox" :aria-label="label" @change="toggleRepeat(axis)" /><span class="toggle" aria-hidden="true"></span><span>{{ label }}</span></label>
+              <template v-if="repeatEnabled[axis]">
+                <label class="mt-3" :for="`repeat-${axis}`">{{ count }} <span class="control-value">{{ repeatCounts[axis] }}</span></label>
+                <div class="slider-control">
+                  <button class="icon-button" type="button" :aria-label="`Decrease repeat ${count.toLowerCase()}`" :disabled="repeatCounts[axis] <= 2" @click="changeRepeat(axis, -1)"><AppIcon name="minus" :size="15" /></button>
+                  <input :id="`repeat-${axis}`" v-model.number="repeatCounts[axis]" :aria-label="`Repeat ${count.toLowerCase()}`" type="range" min="2" :max="repeatMaximum" step="1" />
+                  <button class="icon-button" type="button" :aria-label="`Increase repeat ${count.toLowerCase()}`" :disabled="repeatCounts[axis] >= repeatMaximum" @click="changeRepeat(axis, 1)"><AppIcon name="plus" :size="15" /></button>
+                </div>
+              </template>
+            </fieldset>
+
+
           </div>
         </aside>
 
         <section class="grid-workspace" aria-label="Complex Fourier grid editor">
-          <div class="domain-headings grid grid-cols-2 gap-4 pb-[15px] pt-0.5 max-small:gap-3">
-            <div class="domain-heading"><h2>Drawing</h2></div>
-            <div class="transform-link" :data-direction="arrowDirection || 'idle'" role="img" aria-label="Fourier transform from Drawing to Frequencies; inverse Fourier transform from Frequencies to Drawing.">
-              <span class="transform-label" :class="{ 'is-active': arrowDirection === 'spatial' }" aria-hidden="true">Fourier<span class="max-small:hidden"> transform</span></span>
+          <div class="domain-headings grid grid-cols-2 gap-x-12 pb-[15px] pt-0.5 max-wide:gap-x-9 max-small:gap-x-6">
+            <div class="domain-heading"><AppIcon name="waveform" :size="20" /><h2>Spatial<span class="max-small:block"> domain</span></h2></div>
+            <div class="transform-link" :data-direction="arrowDirection || 'idle'" role="img" aria-label="Forward transform from Spatial to Frequency; inverse transform from Frequency to Spatial.">
+              <span class="transform-label" :class="{ 'is-active': arrowDirection === 'spatial' }" aria-hidden="true">Forward<span class="max-small:hidden"> transform</span></span>
               <svg viewBox="0 0 80 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                 <path class="transform-arrow transform-forward" :class="{ 'is-active': arrowDirection === 'spatial' }" d="M4 6h72m-5-4 5 4-5 4" />
                 <path class="transform-arrow transform-inverse" :class="{ 'is-active': arrowDirection === 'frequency' }" d="M76 18H4m5-4-5 4 5 4" />
               </svg>
               <span class="transform-label" :class="{ 'is-active': arrowDirection === 'frequency' }" aria-hidden="true">Inverse<span class="max-small:hidden"> transform</span></span>
             </div>
-            <div class="domain-heading"><h2>Frequencies</h2></div>
+            <div class="domain-heading"><AppIcon name="spectrum" :size="20" /><h2>Frequency<span class="max-small:block"> domain</span></h2></div>
           </div>
-          <div class="canvas-grid grid grid-cols-2 gap-x-4 gap-y-[15px] max-small:gap-[11px]">
+          <div class="canvas-grid grid grid-cols-2 gap-x-12 gap-y-[15px] max-wide:gap-x-9 max-small:gap-x-6 max-small:gap-y-[11px]">
             <template v-for="component in ['real', 'imaginary']" :key="component">
-              <FourierCanvas :values="spatial[component]" :size="size" :revision="spatialRevision[component]" :changes="spatialChanges[component]" :peak="spatialPeak" :range="spatialRanges[component]" :symmetry="symmetry" :repeat="repeat" :clipboard-size="clipboard?.size || 0" :copied="copiedCanvas === `spatial-${component}`" :phase-enabled="phaseEnabled" :phase-point="phaseHover?.domain === 'spatial' ? phaseHover.point : null" domain="spatial" :component="component" :brush="brush" :brush-value="brushValue" :tool="tool" :logarithmic="logarithmic" :hide-grid-lines="!showGridLines" :disabled="canvasDisabled('spatial', component)" @canvas-stretch-start="startCanvasStretch('spatial', component)" @canvas-stretch="stretchCanvas('spatial', component, $event)" @canvas-pan-start="startCanvasPan('spatial', component)" @canvas-pan="panCanvas('spatial', component, $event)" @canvas-rotation-start="startCanvasRotation('spatial', component)" @canvas-rotate="rotateCanvas('spatial', component, $event)" @phase-hover="hoverPhase('spatial', $event)" @phase-start="startPhase('spatial', $event)" @phase-rotate="rotatePhase('spatial', $event)" @stroke-start="beginStroke('spatial', component)" @paint="paint('spatial', component, $event)" @stroke-end="endStroke('spatial')" @rotate="rotateBrush" @adjust-size="adjustBrushSize" @adjust-value="adjustPaintValue" @mirror="mirrorCanvas('spatial', component, $event)" @copy="copyCanvas('spatial', component)" @paste="pasteCanvas('spatial', component)" @paste-inverted="pasteCanvas('spatial', component, true)" @clear="clearCanvas('spatial', component)" />
-              <FourierCanvas :values="frequency[component]" :size="size" :revision="frequencyRevision[component]" :changes="frequencyChanges[component]" :peak="frequencyPeak" :range="frequencyRanges[component]" :symmetry="symmetry" :repeat="repeat" :clipboard-size="clipboard?.size || 0" :copied="copiedCanvas === `frequency-${component}`" :phase-enabled="phaseEnabled" :phase-point="phaseHover?.domain === 'frequency' ? phaseHover.point : null" domain="frequency" :component="component" :brush="brush" :brush-value="brushValue" :tool="tool" :logarithmic="logarithmic" :hide-grid-lines="!showGridLines" :disabled="canvasDisabled('frequency', component)" @canvas-stretch-start="startCanvasStretch('frequency', component)" @canvas-stretch="stretchCanvas('frequency', component, $event)" @canvas-pan-start="startCanvasPan('frequency', component)" @canvas-pan="panCanvas('frequency', component, $event)" @canvas-rotation-start="startCanvasRotation('frequency', component)" @canvas-rotate="rotateCanvas('frequency', component, $event)" @phase-hover="hoverPhase('frequency', $event)" @phase-start="startPhase('frequency', $event)" @phase-rotate="rotatePhase('frequency', $event)" @stroke-start="beginStroke('frequency', component)" @paint="paint('frequency', component, $event)" @stroke-end="endStroke('frequency')" @rotate="rotateBrush" @adjust-size="adjustBrushSize" @adjust-value="adjustPaintValue" @mirror="mirrorCanvas('frequency', component, $event)" @copy="copyCanvas('frequency', component)" @paste="pasteCanvas('frequency', component)" @paste-inverted="pasteCanvas('frequency', component, true)" @clear="clearCanvas('frequency', component)" />
+              <FourierCanvas :values="spatial[component]" :size="size" :revision="spatialRevision[component]" :changes="spatialChanges[component]" :peak="spatialPeak" :range="spatialRanges[component]" :symmetry="symmetry" :repeat="repeat" :clipboard-size="clipboard?.size || 0" :copied="copiedCanvas === `spatial-${component}`" :phase-enabled="phaseEnabled" :phase-point="phaseHover?.domain === 'spatial' ? phaseHover.point : null" domain="spatial" :component="component" :brush="brush" :brush-value="brushValue" :tool="tool" :logarithmic="logarithmic" :hide-grid-lines="!showGridLines" :snap-to-grid="snapToGrid" :disabled="canvasDisabled('spatial', component)" @canvas-stretch-start="startCanvasStretch('spatial', component)" @canvas-stretch="stretchCanvas('spatial', component, $event)" @canvas-pan-start="startCanvasPan('spatial', component)" @canvas-pan="panCanvas('spatial', component, $event)" @canvas-rotation-start="startCanvasRotation('spatial', component)" @canvas-rotate="rotateCanvas('spatial', component, $event)" @phase-hover="hoverPhase('spatial', $event)" @phase-start="startPhase('spatial', $event)" @phase-rotate="rotatePhase('spatial', $event)" @stroke-start="beginStroke('spatial', component)" @paint="paint('spatial', component, $event)" @stroke-end="endStroke('spatial')" @rotate="rotateBrush" @adjust-size="adjustBrushSize" @adjust-value="adjustPaintValue" @mirror="mirrorCanvas('spatial', component, $event)" @copy="copyCanvas('spatial', component)" @paste="pasteCanvas('spatial', component)" @paste-inverted="pasteCanvas('spatial', component, true)" @clear="clearCanvas('spatial', component)" />
+              <FourierCanvas :values="frequency[component]" :size="size" :revision="frequencyRevision[component]" :changes="frequencyChanges[component]" :peak="frequencyPeak" :range="frequencyRanges[component]" :symmetry="symmetry" :repeat="repeat" :clipboard-size="clipboard?.size || 0" :copied="copiedCanvas === `frequency-${component}`" :phase-enabled="phaseEnabled" :phase-point="phaseHover?.domain === 'frequency' ? phaseHover.point : null" domain="frequency" :component="component" :brush="brush" :brush-value="brushValue" :tool="tool" :logarithmic="logarithmic" :hide-grid-lines="!showGridLines" :snap-to-grid="snapToGrid" :disabled="canvasDisabled('frequency', component)" @canvas-stretch-start="startCanvasStretch('frequency', component)" @canvas-stretch="stretchCanvas('frequency', component, $event)" @canvas-pan-start="startCanvasPan('frequency', component)" @canvas-pan="panCanvas('frequency', component, $event)" @canvas-rotation-start="startCanvasRotation('frequency', component)" @canvas-rotate="rotateCanvas('frequency', component, $event)" @phase-hover="hoverPhase('frequency', $event)" @phase-start="startPhase('frequency', $event)" @phase-rotate="rotatePhase('frequency', $event)" @stroke-start="beginStroke('frequency', component)" @paint="paint('frequency', component, $event)" @stroke-end="endStroke('frequency')" @rotate="rotateBrush" @adjust-size="adjustBrushSize" @adjust-value="adjustPaintValue" @mirror="mirrorCanvas('frequency', component, $event)" @copy="copyCanvas('frequency', component)" @paste="pasteCanvas('frequency', component)" @paste-inverted="pasteCanvas('frequency', component, true)" @clear="clearCanvas('frequency', component)" />
             </template>
           </div>
           <div class="workspace-footer"><div class="color-legend"><span><i class="negative-swatch"></i>Negative</span><span><i class="zero-swatch"></i>Zero</span><span><i class="positive-swatch"></i>Positive</span></div></div>
@@ -755,7 +766,7 @@ onBeforeUnmount(() => {
     <dialog ref="helpDialog" class="help-dialog" aria-labelledby="help-title" @click="($event.target === helpDialog) && helpDialog.close()">
       <div class="dialog-header"><button class="icon-button" type="button" aria-label="Close help" @click="helpDialog.close()"><AppIcon name="close" /></button></div>
       <h2 id="help-title">Using the grids</h2>
-      <p>The left column shows your drawing. The right shows its frequencies. Draw on either side to update the other.</p>
+      <p>The left column is the spatial domain. The right is the frequency domain. Draw on either side to update the other.</p>
       <p>The top row holds real values; the bottom holds imaginary values.</p>
       <p>The <strong>Mirror horizontally</strong> and <strong>Mirror vertically</strong> buttons in each canvas's top bar flip its values left/right or top/bottom. Only that component changes, and the transform updates immediately.</p>
       <p>Use <strong>Copy</strong> and <strong>Paste</strong> beside a canvas's trash button to transfer its values to any other canvas. Paste replaces just that real or imaginary component and updates the transform. Paste inverted (the clipboard with a minus sign) multiplies every copied value by −1 before pasting; the copy stays intact. Copies stay available after editing and clearing. The copied and destination grid sizes must match.</p>
@@ -766,9 +777,10 @@ onBeforeUnmount(() => {
       <p><strong>Symmetry</strong> divides every canvas into equal slices. Set the slice count and angle, then draw in one slice to copy it around the center. Paste and Add use the slice where the stroke begins; Wipe follows the pointer's slice. Brushes and erase are clipped to that slice before copying. Changing the controls leaves existing values intact.</p>
       <p><strong>Horizontal repeat</strong> copies across columns; <strong>Vertical repeat</strong> copies down rows. Turn on both for a grid. Adjust each count from 2 to 16, limited by the grid size. Draw within one cell to copy the clipped brush to every other cell. Paste/Add use the starting cell; Wipe follows the current cell. On uneven divisions, cells differ by one pixel and copies keep their relative position. Repeat and rotational symmetry turn each other off. Existing drawings stay intact when settings change.</p>
       <p><strong>Phase rotation</strong> works with Circle or Square. Matching outlines select the real and imaginary values on the side under your pointer. Press and drag up to increase phase, or down to decrease it: one canvas-height is a full 360° turn. The selection stays where you press. Both components rotate together, preserving magnitude, and empty pixels stay empty. Live updates controls transform timing. Phase rotation replaces painting while enabled and cannot combine with symmetry or repeat.</p>
-      <p><strong>Stretch</strong> (8), under <strong>Manipulate</strong>, stays pinned to the canvas origin. Press anywhere and drag left to stretch horizontally or up to stretch vertically. Drag right or down to shrink that axis. X and Y change independently; half a canvas of travel doubles or halves an axis, within 0.125×–8×. The fixed origin marker, deformed grid, ellipse, and X/Y arrows show the result. Mint arrows expand and gold arrows compress. Only the selected component changes. Each gesture samples its initial snapshot with smooth interpolation and zero outside the edges. Returning to the starting pointer position restores the exact original. Live updates controls transform timing.</p>
+      <p><strong>Stretch</strong> (8), under <strong>Manipulate</strong>, stays pinned to the canvas origin. Press anywhere and drag right to stretch horizontally or up to stretch vertically. Drag left or down to shrink that axis. X and Y change independently; half a canvas of travel doubles or halves an axis, within 0.125×–8×. The fixed origin marker, deformed grid, ellipse, and X/Y arrows show the result. Mint arrows expand and gold arrows compress. Only the selected component changes. Each gesture samples its initial snapshot with smooth interpolation and zero outside the edges. Returning to the starting pointer position restores the exact original. Live updates controls transform timing.</p>
       <p><strong>Pan</strong> (7), under <strong>Manipulate</strong>, moves the canvas you press with the pointer, one grid pixel at a time. Pixels wrap across both horizontal and vertical edges, retaining their exact values. Only the selected real or imaginary component moves. Returning to the starting point restores it. Live updates controls transform timing. With the canvas focused, arrow keys pan by one pixel.</p>
       <p><strong>Rotate</strong> (6), under <strong>Manipulate</strong>, turns the canvas you press about its origin. Drag up for counterclockwise rotation, down for clockwise: one canvas-height is 360°. Only that real or imaginary component changes. The drag uses its starting snapshot; returning to the starting height restores it. Quarter turns retain exact pixels. Other angles use smooth interpolation, with zero beyond the edges. Live updates controls transform timing. Focus a canvas and press Up/Down for ±5° steps.</p>
+      <p><strong>Snap to grid</strong> is on by default. When enabled, brush positions within 8 screen pixels of the center X or Y line snap to that axis, or to the origin when near both. The preview and painting use the same snapped point, including phase selections and erasing. Snapping works with grid lines hidden and does not change Pan, Rotate, or Stretch.</p>
       <p>Hover over a grid to see the outline before painting. Wave previews show the peaks and troughs. Erase clears the selected brush's area; for Wave and Gaussian, that is the whole canvas.</p>
       <p><strong>Paste</strong> replaces existing values. <strong>Add</strong> adds the brush values without a cap. Each stroke adds once per pixel; start another stroke to add again.</p>
       <p><strong>Wipe</strong> clears the selected canvas and draws just one brush at the pointer. Drag to move it without leaving a trail.</p>

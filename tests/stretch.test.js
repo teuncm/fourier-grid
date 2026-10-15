@@ -7,7 +7,7 @@ test('Stretch controls horizontal and vertical scales independently, including s
   for (const size of [1, 31, 32, 127, 1024]) for (const [x, y] of [[0, 0], [size / 2, 0], [0, -size / 2], [size / 3, size / 4], [-size, size], [size * 100, -size * 100]]) {
     const m = stretchFromDrag(x, y, size)
     const expected = distance => Math.max(.125, Math.min(8, 2 ** (-2 * distance / size)))
-    assert.ok(Math.abs(m.scaleX - expected(x)) < 1e-12)
+    assert.ok(Math.abs(m.scaleX - expected(-x)) < 1e-12)
     assert.ok(Math.abs(m.scaleY - expected(y)) < 1e-12)
     assert.ok(Math.abs(m.a - m.scaleX) < 1e-12)
     assert.ok(Math.abs(m.d - m.scaleY) < 1e-12)
@@ -16,7 +16,7 @@ test('Stretch controls horizontal and vertical scales independently, including s
     assert.ok(m.scaleX >= .125 - 1e-15 && m.scaleX <= 8)
     assert.ok(m.scaleY >= .125 - 1e-15 && m.scaleY <= 8)
   }
-  assert.equal(stretchFromDrag(16, 0, 32).scaleX, .5)
+  assert.equal(stretchFromDrag(16, 0, 32).scaleX, 2)
   assert.equal(stretchFromDrag(16, 0, 32).scaleY, 1)
   assert.equal(stretchFromDrag(0, -16, 32).scaleX, 1)
   assert.equal(stretchFromDrag(0, -16, 32).scaleY, 2)
@@ -26,7 +26,7 @@ test('Stretch matches independent inverse sampling, fixes its anchor, and report
   for (const size of [2, 3, 7, 16, 31, 32]) for (const [dx, dy] of [[.5, 0], [-.5, 0], [0, .5], [.3, -.4], [.25, .1]]) {
     const values = Float64Array.from({ length: size * size }, (_, i) => Math.sin(i + .7) * 3)
     const original = values.slice(), anchor = { x: Math.floor(size / 2), y: Math.floor(size / 2) }
-    const scaleX = 2 ** (-2 * dx), scaleY = 2 ** (-2 * dy), m = stretchFromDrag(size * dx, size * dy, size)
+    const scaleX = 2 ** (2 * dx), scaleY = 2 ** (-2 * dy), m = stretchFromDrag(size * dx, size * dy, size)
     const sample = (x, y) => x < 0 || y < 0 || x >= size || y >= size ? 0 : original[displayToIndex(x, y, size)]
     const result = stretchCanvasValues(values, createCanvasStretch(values, size), m)
     for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) {
@@ -65,7 +65,7 @@ test('Stretch stays pinned to the FFT origin with fixed X/Y axes on odd and even
     values[displayToIndex(origin, origin + 1, size)] = 3
     const snapshot = createCanvasStretch(values, size)
     assert.deepEqual(snapshot.anchor, { x: origin, y: origin })
-    stretchCanvasValues(values, snapshot, stretchFromDrag(-size / 2, -size / 2, size))
+    stretchCanvasValues(values, snapshot, stretchFromDrag(size / 2, -size / 2, size))
     assert.equal(values[0], 4)
     assert.equal(values[displayToIndex(origin - 2, origin, size)], -2.75)
     assert.equal(values[displayToIndex(origin, origin + 2, size)], 3)

@@ -1,6 +1,7 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { displayToIndex } from '../lib/grid.js'
+import { canvasPoint } from '../lib/pointer.js'
 import { createCanvasRenderer } from '../lib/canvas-renderer.js'
 import SymmetryPreview from './SymmetryPreview.vue'
 import RepeatPreview from './RepeatPreview.vue'
@@ -31,6 +32,7 @@ const props = defineProps({
   tool: { type: String, default: 'paint' },
   logarithmic: Boolean,
   hideGridLines: Boolean,
+  snapToGrid: Boolean,
   disabled: Boolean,
 })
 const emit = defineEmits(['paint', 'stroke-start', 'stroke-end', 'rotate', 'adjust-size', 'adjust-value', 'clear', 'copy', 'mirror', 'paste', 'paste-inverted', 'phase-hover', 'phase-start', 'phase-rotate', 'canvas-rotation-start', 'canvas-rotate', 'canvas-pan-start', 'canvas-pan', 'canvas-stretch-start', 'canvas-stretch'])
@@ -40,6 +42,7 @@ const drawing = ref(false)
 const localErase = ref(false)
 const strokeOrigin = ref(null)
 let previous = null
+let lastPointer = null
 let pointerId = null
 let phaseStartY = 0, phaseHeight = 1
 let panStart = null
@@ -120,11 +123,9 @@ function scheduleRender() {
 }
 
 function position(event) {
+  lastPointer = { clientX: event.clientX, clientY: event.clientY }
   const rect = canvas.value.getBoundingClientRect()
-  return {
-    x: Math.max(0, Math.min(props.size - 1, Math.floor(((event.clientX - rect.left) / rect.width) * props.size))),
-    y: Math.max(0, Math.min(props.size - 1, Math.floor(((event.clientY - rect.top) / rect.height) * props.size))),
-  }
+  return canvasPoint(event.clientX, event.clientY, rect, props.size, props.snapToGrid && !canvasBrush.value)
 }
 
 function startStroke(event) {
@@ -187,6 +188,7 @@ function movePointer(event) {
 function leavePointer() {
   if (drawing.value) return
   pointer.value = null
+  lastPointer = null
   if (props.phaseEnabled) emit('phase-hover', null)
 }
 
@@ -272,7 +274,12 @@ function keyboardStamp(event) {
   }
 }
 
-watch(() => props.size, () => { pointer.value = null })
+watch(() => props.size, () => { pointer.value = null; lastPointer = null })
+watch(() => [props.snapToGrid, props.brush.shape], () => {
+  if (!lastPointer || !pointer.value || drawing.value) return
+  pointer.value = position(lastPointer)
+  if (props.phaseEnabled && !props.disabled) emit('phase-hover', pointer.value)
+})
 watch(() => props.brush.shape, () => { wheelDelta = 0; sizeWheelDelta = 0; valueWheelDelta = 0 })
 watch(() => [props.brush.angle, props.brush.size, props.brush.wavelength, props.brush.sigma, props.brushValue], () => {
   if (drawing.value && !props.phaseEnabled && !canvasBrush.value && props.brush.mode === 'wipe' && pointer.value) {
@@ -298,10 +305,10 @@ onBeforeUnmount(() => {
       <span class="component-label">{{ component === 'real' ? 'Real' : 'Imaginary' }}</span>
       <div class="canvas-actions">
         <button v-for="direction in ['horizontal', 'vertical']" :key="direction" :class="`canvas-action-button canvas-mirror-${direction}-button`" type="button" :aria-label="`Mirror ${label} ${direction === 'horizontal' ? 'horizontally' : 'vertically'}`" :title="direction === 'horizontal' ? 'Mirror horizontally (left ↔ right)' : 'Mirror vertically (top ↔ bottom)'" :disabled="disabled || drawing" @click="emit('mirror', direction)"><AppIcon :name="`mirror-${direction}`" :size="15" /></button>
-        <button class="canvas-action-button canvas-copy-button" :class="{ copied }" type="button" :aria-label="`Copy ${label}`" :title="copied ? 'Copied' : `Copy ${domain === 'spatial' ? 'drawing' : 'frequencies'} · ${component}`" :disabled="disabled || drawing" @click="emit('copy')"><AppIcon :name="copied ? 'check' : 'copy'" :size="15" /></button>
-        <button class="canvas-action-button canvas-paste-button" type="button" :aria-label="`Paste into ${label}`" :title="!clipboardSize ? 'Copy a canvas first' : clipboardSize !== size ? `Copied grid is ${clipboardSize} × ${clipboardSize}. Choose that grid size to paste.` : `Paste into ${domain === 'spatial' ? 'drawing' : 'frequencies'} · ${component}`" :disabled="disabled || drawing || clipboardSize !== size" @click="emit('paste')"><AppIcon name="paste" :size="15" /></button>
-        <button class="canvas-action-button canvas-paste-inverted-button" type="button" :aria-label="`Paste inverted into ${label}`" :title="!clipboardSize ? 'Copy a canvas first' : clipboardSize !== size ? `Copied grid is ${clipboardSize} × ${clipboardSize}. Choose that grid size to paste.` : `Paste inverted (× −1) into ${domain === 'spatial' ? 'drawing' : 'frequencies'} · ${component}`" :disabled="disabled || drawing || clipboardSize !== size" @click="emit('paste-inverted')"><AppIcon name="paste-inverted" :size="15" /></button>
-        <button class="canvas-action-button canvas-clear-button" type="button" :aria-label="`Clear ${label}`" :title="`Clear ${domain === 'spatial' ? 'drawing' : 'frequencies'} · ${component}`" :disabled="disabled || drawing" @click="emit('clear')"><AppIcon name="trash" :size="15" /></button>
+        <button class="canvas-action-button canvas-copy-button" :class="{ copied }" type="button" :aria-label="`Copy ${label}`" :title="copied ? 'Copied' : `Copy ${domain === 'spatial' ? 'spatial' : 'frequency'} · ${component}`" :disabled="disabled || drawing" @click="emit('copy')"><AppIcon :name="copied ? 'check' : 'copy'" :size="15" /></button>
+        <button class="canvas-action-button canvas-paste-button" type="button" :aria-label="`Paste into ${label}`" :title="!clipboardSize ? 'Copy a canvas first' : clipboardSize !== size ? `Copied grid is ${clipboardSize} × ${clipboardSize}. Choose that grid size to paste.` : `Paste into ${domain === 'spatial' ? 'spatial' : 'frequency'} · ${component}`" :disabled="disabled || drawing || clipboardSize !== size" @click="emit('paste')"><AppIcon name="paste" :size="15" /></button>
+        <button class="canvas-action-button canvas-paste-inverted-button" type="button" :aria-label="`Paste inverted into ${label}`" :title="!clipboardSize ? 'Copy a canvas first' : clipboardSize !== size ? `Copied grid is ${clipboardSize} × ${clipboardSize}. Choose that grid size to paste.` : `Paste inverted (× −1) into ${domain === 'spatial' ? 'spatial' : 'frequency'} · ${component}`" :disabled="disabled || drawing || clipboardSize !== size" @click="emit('paste-inverted')"><AppIcon name="paste-inverted" :size="15" /></button>
+        <button class="canvas-action-button canvas-clear-button" type="button" :aria-label="`Clear ${label}`" :title="`Clear ${domain === 'spatial' ? 'spatial' : 'frequency'} · ${component}`" :disabled="disabled || drawing" @click="emit('clear')"><AppIcon name="trash" :size="15" /></button>
       </div>
     </header>
     <div class="canvas-surround">

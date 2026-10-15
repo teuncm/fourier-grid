@@ -19,11 +19,21 @@ Use `npm run build` for a production build, `npm run preview` to serve it, and
 
 ## Controls
 
+- **Grid size** is at the top of the controls. Use **Tools** to expand or
+  collapse the drawing and manipulation controls; they start expanded. Grid
+  size, Live updates, Boost faint values, Show grid lines, Snap to grid, and
+  Clear all grids stay accessible while collapsed. Brush/settings choices
+  are preserved.
 - All four canvases start empty. Draw on any canvas to experiment.
 - Drag on any of the four canvases to paint. Release to update the other domain.
 - **Live updates** is on by default for every drawing mode. Turn it off to
   update the other domain only on release, including in Wipe. Releasing always
   includes the complete stroke.
+- **Snap to grid**, below **Show grid lines**, is on by default. When enabled,
+  brushes snap to the center X/Y axes within 8 CSS pixels, independently per
+  axis; near both, they snap to the origin. Preview, painting, erase, and phase
+  selection use the same point. It works with hidden grid lines. Pan, Rotate,
+  and Stretch keep their existing gesture behavior.
 - Select **Erase**, or right-click and drag, to set samples to zero.
 - Use each canvas's **Mirror horizontally** or **Mirror vertically** button
   in its top bar to flip left/right or top/bottom in displayed coordinates.
@@ -58,7 +68,7 @@ Use `npm run build` for a production build, `npm run preview` to serve it, and
   the toggle, slice count, or angle. Live updates still control transform timing.
 - Under **Manipulate**, choose **Stretch** (or press `8`). The anchor always
   stays at the FFT origin, including on odd and even grids. Press anywhere and
-  drag left to stretch X or up to stretch Y; drag right/down to shrink the
+  drag right to stretch X or up to stretch Y; drag left/down to shrink the
   corresponding axis. X and Y change independently with fixed horizontal and
   vertical directions. Half a canvas of travel doubles or halves an axis,
   within 0.125×–8×. A fixed origin marker, deformed grid, ellipse, and labelled
