@@ -31,7 +31,7 @@ function directDFT(real, imaginary, size, inverse) {
 }
 
 for (const inverse of [false, true]) {
-  for (const size of [1, 2, 4, 8, 16, 32]) {
+  for (const size of [1, 2, 3, 4, 7, 8, 15, 16, 31, 32]) {
     test(`${inverse ? 'Inverse' : 'Forward'} ${size} × ${size} FFT matches direct complex DFT`, async () => {
       const real = Float64Array.from({ length: size * size }, (_, i) => Math.sin(i * 1.3))
       const imaginary = Float64Array.from({ length: size * size }, (_, i) => Math.cos(i * 0.7))
@@ -44,7 +44,7 @@ for (const inverse of [false, true]) {
 }
 
 test('Worker-owned in-place buffers match complex DFTs and remain the returned buffers', async () => {
-  for (const size of [1, 2, 4, 16]) for (const inverse of [false, true]) {
+  for (const size of [1, 2, 3, 4, 7, 16, 31]) for (const inverse of [false, true]) {
     const real = Float64Array.from({ length: size * size }, (_, i) => Math.sin(i * 1.3))
     const imaginary = Float64Array.from({ length: size * size }, (_, i) => Math.cos(i * .7))
     const expected = directDFT(real, imaginary, size, inverse)
@@ -57,14 +57,16 @@ test('Worker-owned in-place buffers match complex DFTs and remain the returned b
   await assert.rejects(fft2D([1], [0], 1, false, { inPlace: true }), TypeError)
 })
 
-for (const size of [1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024]) {
+for (const size of [1, 2, 3, 4, 7, 8, 15, 16, 31, 32, 63, 64, 127, 128, 255, 256, 511, 512, 1023, 1024]) {
   test(`Complex ${size} × ${size} forward/inverse round trip`, async () => {
     const real = Float64Array.from({ length: size * size }, (_, i) => Math.sin(i * 1.1) * 3)
     const imaginary = Float64Array.from({ length: size * size }, (_, i) => Math.cos(i * 0.3) - 0.5)
     const transformed = await fft2D(real, imaginary, size)
     const restored = await fft2D(transformed.real, transformed.imaginary, size, true)
-    close(restored.real, real)
-    close(restored.imaginary, imaginary)
+    // Bluestein composes multiple approximate WASM FFTs per line.
+    const tolerance = Number.isInteger(Math.log2(size)) ? 1e-9 : 1e-8
+    close(restored.real, real, tolerance)
+    close(restored.imaginary, imaginary, tolerance)
   })
 }
 
@@ -125,7 +127,7 @@ test('Invalid dimensions fail clearly', async () => {
 })
 
 test('Concurrent transforms do not overwrite the shared WASM buffers', async () => {
-  const inputs = [16, 32, 16].map((size, index) => ({
+  const inputs = [17, 32, 17, 9].map((size, index) => ({
     size,
     real: new Float64Array(size * size).fill(index + 1),
     imaginary: new Float64Array(size * size).fill(-0.5),

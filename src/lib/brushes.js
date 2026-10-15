@@ -118,8 +118,7 @@ function getWaveField(size, brush, origin) {
   const cosine = Math.cos(angle)
   const sine = Math.sin(angle)
   const values = waveField?.values.length === size * size ? waveField.values : new Float64Array(size * size)
-  const half = Math.floor(size / 2)
-  const mask = size - 1
+  const half = Math.ceil(size / 2)
   const columnCosines = new Float64Array(size)
   const columnSines = new Float64Array(size)
   // cos(a + b) separates the 2D wave into O(size) trigonometric evaluations.
@@ -132,9 +131,9 @@ function getWaveField(size, brush, origin) {
     const phase = 2 * Math.PI * (y - origin.y) * sine / brush.wavelength
     const rowCosine = Math.cos(phase)
     const rowSine = Math.sin(phase)
-    const row = ((y + half) & mask) * size
+    const row = ((y + half) % size) * size
     for (let x = 0; x < size; x++) {
-      values[row + ((x + half) & mask)] = columnCosines[x] * rowCosine - columnSines[x] * rowSine
+      values[row + ((x + half) % size)] = columnCosines[x] * rowCosine - columnSines[x] * rowSine
     }
   }
   waveField = { key, values }
@@ -147,13 +146,13 @@ function getGaussianField(size, brush, origin) {
   const values = gaussianField?.values.length === size * size ? gaussianField.values : new Float64Array(size * size)
   const columns = new Float64Array(size)
   const denominator = 2 * brush.sigma * brush.sigma
-  const half = Math.floor(size / 2), mask = size - 1
+  const half = Math.ceil(size / 2)
   // A Gaussian is separable: evaluate only one exponential per row/column.
   for (let x = 0; x < size; x++) columns[x] = Math.exp(-((x - origin.x) ** 2) / denominator)
   for (let y = 0; y < size; y++) {
     const rowValue = Math.exp(-((y - origin.y) ** 2) / denominator)
-    const row = ((y + half) & mask) * size
-    for (let x = 0; x < size; x++) values[row + ((x + half) & mask)] = columns[x] * rowValue
+    const row = ((y + half) % size) * size
+    for (let x = 0; x < size; x++) values[row + ((x + half) % size)] = columns[x] * rowValue
   }
   gaussianField = { key, values }
   return values
@@ -293,7 +292,7 @@ export function paintBrushStroke(values, size, from, to, brush, value, origin = 
     left = top = 0; right = bottom = size - 1
     return result()
   }
-  const half = Math.floor(size / 2)
+  const half = Math.ceil(size / 2)
   if (brush.shape === 'line') {
     visitLine(size, from, to, brush, (x, y) => {
       const index = ((y + half) % size) * size + ((x + half) % size)

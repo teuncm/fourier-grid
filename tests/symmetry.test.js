@@ -9,6 +9,13 @@ const center = { x: 6, y: 5 }
 const brush = { shape: 'dot', size: 1, mode: 'paste' }
 const sample = (values, x, y, size = 8) => values[displayToIndex(x, y, size)]
 
+test('Odd-grid symmetry rotates around the central pixel without shifting copies', () => {
+  const size = 9, point = { x: 7, y: 5 }, values = new Float64Array(size * size)
+  paintSymmetricStroke(values, size, point, point, brush, 1, point, symmetry)
+  for (const [x, y] of [[7,5], [3,7], [1,3], [5,1]]) assert.equal(sample(values,x,y,size),1)
+  assert.equal(values.filter(v => v !== 0).length,4)
+})
+
 test('Four slices copy one pixel to exact quarter-turn positions around the canvas center', () => {
   const values = new Float64Array(64)
   paintSymmetricStroke(values, 8, center, center, brush, -.7, center, symmetry)
@@ -85,7 +92,7 @@ test('Erasing in Wipe follows the current pointer slice, matching its preview', 
 })
 
 test('All brushes, modes, arbitrary slice counts, and rotations retain accurate ranges and bounds', () => {
-  for(const size of [1,2,16]) for(const shape of ['dot','square','line','wave','gaussian']) for(const slices of [2,3,6,8]) {
+  for(const size of [1,2,3,5,9,16,33]) for(const shape of ['dot','square','line','wave','gaussian']) for(const slices of [2,3,6,8]) {
     const values = new Float64Array(size*size)
     let range=valueRange(values)
     for(let step=0;step<9;step++) {

@@ -19,14 +19,29 @@ Use `npm run build` for a production build, `npm run preview` to serve it, and
 
 ## Controls
 
-- All four canvases start empty. Choose a pattern or draw to fill them.
+- All four canvases start empty. Draw on any canvas to experiment.
 - Drag on any of the four canvases to paint. Release to update the other domain.
 - **Live updates** is on by default for every drawing mode. Turn it off to
   update the other domain only on release, including in Wipe. Releasing always
   includes the complete stroke.
 - Select **Erase**, or right-click and drag, to set samples to zero.
+- Use each canvas's **Mirror horizontally** or **Mirror vertically** button
+  in its top bar to flip left/right or top/bottom in displayed coordinates.
+  Flips preserve exact values and their range, leave the companion component
+  intact, and update the transform immediately, even with Live updates off.
 - Use a canvas's trash button to clear just that real or imaginary component
   and update the other domain. The companion component stays intact.
+- **Copy** and **Paste** sit beside each canvas's trash button. Copy snapshots
+  that canvas's numerical values; Paste replaces one destination component and
+  updates the other domain, preserving the destination's companion component.
+  Any of the four canvases can copy to any other, retaining signed, uncapped
+  float64 values. The copy stays available after edits, transforms, and clearing.
+  After resizing, Paste is disabled until the grid matches the copied size or
+  you copy a canvas at the new size. These controls are disabled during drawing
+  and transforms. Paste always updates the transform immediately.
+  **Paste inverted** (clipboard with a minus sign) pastes the copied values
+  multiplied by −1, preserving the copy for normal or inverted pastes later.
+  It has the same size restriction and updates the transform immediately.
 - Each canvas shows its minimum and maximum numerical values below the grid.
   They update while drawing and after transforms; Boost faint values does not
   affect them. Hover over a displayed value to see its full precision.
@@ -41,6 +56,61 @@ Use `npm run build` for a production build, `npm run preview` to serve it, and
   Wipe clears once before placing every copy; Add contributes once per
   destination pixel per stroke. Existing values stay intact when you change
   the toggle, slice count, or angle. Live updates still control transform timing.
+- Under **Manipulate**, choose **Stretch** (or press `8`). The anchor always
+  stays at the FFT origin, including on odd and even grids. Press anywhere and
+  drag left to stretch X or up to stretch Y; drag right/down to shrink the
+  corresponding axis. X and Y change independently with fixed horizontal and
+  vertical directions. Half a canvas of travel doubles or halves an axis,
+  within 0.125×–8×. A fixed origin marker, deformed grid, ellipse, and labelled
+  X/Y arrows show the mapping. Mint arrows expand and gold arrows compress.
+  The sidebar shows both scale factors. Only the selected real or imaginary
+  canvas changes. Each gesture samples its starting snapshot using bilinear
+  interpolation; pixels beyond the edges are zero. Returning to the starting
+  pointer position restores the exact original. Live updates controls transform
+  timing. Paint/Erase, drawing modes, wheel adjustments, symmetry, and repeat
+  do not alter this whole-canvas operation.
+- Under **Manipulate**, choose **Pan** (or press `7`) to move the selected real or imaginary canvas
+  with the pointer. Motion snaps to whole grid pixels and wraps across both
+  edges, preserving every value exactly. Each drag uses its starting snapshot;
+  returning to the start restores it, and dragging beyond the canvas keeps
+  wrapping. The companion component stays intact. Live updates controls
+  transform timing; with it off, the transform waits for release. Paint value,
+  Erase, size, and drawing modes do not apply. With the canvas focused, arrow
+  keys pan by one pixel. Like Rotate, Pan moves the whole canvas regardless
+  of symmetry or repeat settings.
+- Under **Manipulate**, choose **Rotate** (or press `6`) to rotate the selected canvas about its
+  origin. Drag up for counterclockwise rotation or down for clockwise; one
+  canvas-height of travel is 360°. It affects the real or imaginary canvas you
+  press. The companion component stays intact. Each gesture rotates its initial
+  snapshot, so returning to the starting height restores it without cumulative
+  blur. Quarter turns retain exact pixels; other angles use bilinear sampling,
+  with zero beyond the canvas edges. Live updates controls transform timing.
+  Paint value, Erase, brush size, and drawing modes do not apply. With the canvas
+  focused, Up/Down rotates by 5°.
+- Enable **Phase rotation**, directly below Circle and Square, to rotate existing complex
+  values in a fixed brush selection. Matching outlines appear on the real and
+  imaginary canvases of the domain under the pointer. Press either canvas and
+  drag up to increase phase or down to decrease it; one canvas-height of travel
+  is 360°. The footprint stays at the press position throughout the gesture.
+  Both components change together while magnitude stays constant. Empty samples
+  remain empty. Returning to the starting height restores the captured values.
+  Live updates controls transform timing as usual. Paint value, Erase, and draw
+  modes do not apply to phase rotation. Circle/Square size and Square orientation
+  define the selection before pressing. Other brushes turn phase rotation off.
+  Phase rotation, rotational symmetry, and repeat turn each other off.
+- Enable **Horizontal repeat** to copy across columns or **Vertical repeat**
+  to copy down rows. Combine them for a grid of repeated cells. Each direction
+  has a count from 2 to 16 (limited by the grid size), with plus/minus controls.
+  Both are off initially. Enabling either turns off rotational symmetry;
+  enabling rotational symmetry turns off both repeat directions.
+  Faint guides and clipped brush previews show the copies on every canvas.
+  Paste/Add use the cell where the stroke starts; Wipe uses the current cell.
+  Brushes are clipped to that cell and copied at the same relative position.
+  Non-divisible grids use cells differing by one pixel, with nearest-pixel
+  resampling between them. Wipe clears once before all copies; Add contributes
+  once per destination pixel per stroke. Erasing repeats too. Changing repeat
+  settings leaves existing values intact, and Live updates controls transform
+  timing as usual. Repeats are unavailable on the 1 × 1 grid.
 - **Paste** replaces the samples under the brush.
   **Add** sums the brush values with existing samples without a cap.
   Each pixel receives one contribution per stroke, regardless of overlapping
@@ -56,13 +126,13 @@ Use `npm run build` for a production build, `npm run preview` to serve it, and
 - Choose **Gaussian** with its brush button or `5`. It paints
   `value × exp(−(dx² + dy²) / (2σ²))` across the canvas, centered where you press.
   Its peak is the paint value. Set the standard deviation **σ** in pixels with
-  the slider, ±0.5 buttons, **Ctrl+scroll**, or `[` and `]`.
+  the slider, ±0.5 buttons, **scroll**, or `[` and `]`.
   Scroll up to increase σ and down to decrease it. The range is 0.5 to half the
   grid size; each brush remembers its setting, clamped on resizing.
   Preview rings show 1σ and 2σ. Paste and Add retain the initial center during
   a stroke; in Wipe the Gaussian follows the pointer and can be resized while
   dragging. Erasing with Gaussian clears the selected canvas.
-- Scroll over a canvas to rotate Square, Line, or Wave, or use the **Rotation**
+- Hold **Ctrl** and scroll over a canvas to rotate Square, Line, or Wave, or use the **Rotation**
   or **Direction** slider. Scrolling down rotates clockwise and scrolling up rotates back.
   Each brush remembers its angle. In Wipe you can rotate while dragging;
   hovering alone changes the preview without painting.
@@ -72,10 +142,15 @@ Use `npm run build` for a production build, `npm run preview` to serve it, and
   Buttons disable at the slider limits; angles wrap around.
 - Adjust the circle diameter, square side length, or line width with the slider, plus/minus buttons,
   or `[` and `]`. Each brush remembers its size.
-- Hold **Ctrl** and scroll over any canvas to adjust circle diameter, square
+- Scroll over any canvas to adjust circle diameter, square
   side length, line width, wave frequency, or Gaussian σ. Scroll up to increase and down
   to decrease, in steps of 2 pixels or 0.5 cycles. Values stay within the slider
   limits. In Wipe, these adjustments also update the brush while dragging.
+- Hold **Shift** and scroll to adjust paint value by 0.1 per step: up increases,
+  down decreases. Shift takes priority over Ctrl. Paint value stays between −1
+  and +1. In Wipe, changing value while dragging updates the current brush.
+  Pan, Rotate, and Stretch do not use these brush adjustments. Page scrolling is blocked
+  over all canvases, regardless of the selected tool or modifiers.
 - **Line** extends across the entire canvas through the pointer. Set its width
   and **Direction**; dragging sweeps the line without gaps.
 - **Wave** fills the entire canvas with positive and negative cosine bands.
@@ -91,13 +166,14 @@ Use `npm run build` for a production build, `npm run preview` to serve it, and
 - Press `B` for paint and `E` for erase. Focus a canvas and use arrow keys to
   position the brush, then Enter or Space to stamp the selected brush.
 - The brush value ranges from −1 to +1; Add can accumulate values beyond that.
-  Mint represents positive values, coral
+  Mint represents positive values, gold
   represents negative values, and dark represents zero.
-- Try a single point, double slit, ring, or cosine wave from the pattern menu.
-- Resolutions are 1, 2, 4, 8, 16, 32, 64, 128, 256, 512, and 1024 pixels per side. Changing resolution resets the
-  grids and reloads the selected pattern, if any.
+- Resolutions include powers of two from 1 through 1024, plus each positive size minus 1 (3, 7, 15, 31, 63, 127, 255, 511, and 1023). Odd sizes use Bluestein convolution through the same WASM FFT, with exact grid dimensions. Changing resolution resets all four grids to empty.
 
 Both domains display their origin at the center, with labels on both axes.
+Real canvases have blue outlines and imaginary canvases amber outlines, using
+a Wolfram-inspired palette. The paired arrows between the column headings show
+the forward Fourier transform to the right and the inverse transform to the left.
 X increases to the right and Y increases downward, matching the canvas readout.
 The 1 × 1 grid contains only the origin; its complex transform is the same sample.
 Brightness is normalized per

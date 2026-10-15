@@ -9,7 +9,7 @@ test('Packed rendering matches the original formula at color boundaries and acro
   for (let i = 0; i < 20000; i++) samples.push(Math.sin(i * 1.73) * Math.cos(i * 0.41) * 2)
   // Probe both sides of every channel's rounding transition, for both scales.
   for (const boosted of [false, true]) {
-    for (const [base, span, sign] of [[13, 102, 1], [22, 216, 1], [28, 174, 1], [13, 231, -1], [22, 119, -1], [28, 91, -1]]) {
+    for (const [base, span, sign] of [[13, 157, 1], [22, 233, 1], [28, 194, 1], [13, 242, -1], [22, 208, -1], [28, 81, -1]]) {
       for (let channel = base; channel < base + span; channel++) {
         const level = (channel + 0.5 - base) / span
         const relative = boosted ? Math.expm1(level * Math.log(81)) / 80 : level
@@ -26,9 +26,9 @@ test('Packed rendering matches the original formula at color boundaries and acro
       const relative = Math.min(1, Math.abs(value) / (peak > 1e-12 ? peak : 1))
       const level = boosted ? Math.log1p(80 * relative) / Math.log(81) : relative
       const start = (y * size + x) * 4, positive = value >= 0
-      expected[start] = Math.round(13 + ((positive ? 115 : 244) - 13) * level)
-      expected[start + 1] = Math.round(22 + ((positive ? 238 : 141) - 22) * level)
-      expected[start + 2] = Math.round(28 + ((positive ? 202 : 119) - 28) * level)
+      expected[start] = Math.round(13 + ((positive ? 170 : 255) - 13) * level)
+      expected[start + 1] = Math.round(22 + ((positive ? 255 : 230) - 22) * level)
+      expected[start + 2] = Math.round(28 + ((positive ? 222 : 109) - 28) * level)
       expected[start + 3] = 255
     }
     for (const offset of [0, 1, 4]) {
@@ -43,7 +43,7 @@ test('Packed rendering matches the original formula at color boundaries and acro
 })
 
 test('Tiny grids render the origin at the same pixel used by painting', () => {
-  for (const size of [1, 2, 4]) {
+  for (const size of [1, 2, 3, 4, 5, 9, 33]) {
     const grid = createGrid(size)
     const center = { x: Math.floor(size / 2), y: Math.floor(size / 2) }
     paintBrushStroke(grid.real, size, center, center, { shape: 'dot', size: 1 }, 1)
@@ -51,7 +51,7 @@ test('Tiny grids render the origin at the same pixel used by painting', () => {
     renderGridPixels(grid.real, size, 1, false, pixels)
     for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) {
       const start = (y * size + x) * 4
-      assert.deepEqual(Array.from(pixels.slice(start, start + 4)), x === center.x && y === center.y ? [115, 238, 202, 255] : [13, 22, 28, 255])
+      assert.deepEqual(Array.from(pixels.slice(start, start + 4)), x === center.x && y === center.y ? [170, 255, 222, 255] : [13, 22, 28, 255])
     }
   }
 })
@@ -66,9 +66,9 @@ test('Rendering retains centered coordinates, signed colors, and the exact faint
   const pixel = (x, y) => Array.from(pixels.slice((y * size + x) * 4, (y * size + x + 1) * 4))
   for (const boosted of [false, true]) {
     renderGridPixels(values, size, 1, boosted, pixels)
-    assert.deepEqual(pixel(8, 8), [115, 238, 202, 255])
-    assert.deepEqual(pixel(2, 3), boosted ? [129, 82, 74, 255] : [36, 34, 37, 255])
-    assert.deepEqual(pixel(15, 15), [244, 141, 119, 255])
+    assert.deepEqual(pixel(8, 8), [170, 255, 222, 255])
+    assert.deepEqual(pixel(2, 3), boosted ? [134, 126, 69, 255] : [37, 43, 36, 255])
+    assert.deepEqual(pixel(15, 15), [255, 230, 109, 255])
     assert.deepEqual(pixel(0, 0), [13, 22, 28, 255])
   }
 })
@@ -101,6 +101,19 @@ for (const shape of ['dot', 'square', 'line', 'wave']) {
   })
 }
 
+test('Odd-grid Wipe dirty bounds clear the previous footprint in display coordinates', () => {
+  const size = 33, values = new Float64Array(size * size)
+  const partial = new Uint8ClampedArray(size * size * 4), full = new Uint8ClampedArray(partial.length)
+  const brush = { shape: 'dot', size: 3, mode: 'wipe' }
+  renderGridPixels(values, size, 1, false, partial)
+  for (const point of [{x:1,y:2}, {x:30,y:29}, {x:16,y:16}]) {
+    const changes = paintBrushStroke(values,size,point,point,brush,1)
+    renderGridPixels(values,size,1,false,partial,changes.bounds)
+    renderGridPixels(values,size,1,false,full)
+    assert.deepEqual(partial,full)
+  }
+})
+
 test('A full repaint after the scale drops updates previously untouched faint values', () => {
   const size = 16
   const grid = createGrid(size)
@@ -115,7 +128,7 @@ test('A full repaint after the scale drops updates previously untouched faint va
   assert.equal(result.newPeak, 0)
   renderGridPixels(grid.real, size, 0.1, true, pixels)
   assert.notDeepEqual(pixels.slice(0, 4), faintBefore)
-  assert.deepEqual(Array.from(pixels.slice(0, 4)), [115, 238, 202, 255])
+  assert.deepEqual(Array.from(pixels.slice(0, 4)), [170, 255, 222, 255])
 })
 
 test('Unchanged brush stamps report no work, and changed bounds stay inside the grid', () => {

@@ -18,8 +18,8 @@ const outline = computed(() => {
 const transform = computed(() => ['dot', 'square'].includes(props.brush.shape) ? `translate(${props.center.x + 0.5} ${props.center.y + 0.5})` : undefined)
 const wave = computed(() => getWavePreview(props.brush, props.size, props.origin || props.center))
 const removing = computed(() => props.erase || (props.value === 0 && props.brush.mode !== 'add'))
-const peaksColor = computed(() => props.value >= 0 ? '#73eeca' : '#f48d77')
-const troughsColor = computed(() => props.value >= 0 ? '#f48d77' : '#73eeca')
+const peaksColor = computed(() => props.value >= 0 ? '#aaffde' : '#ffe66d')
+const troughsColor = computed(() => props.value >= 0 ? '#ffe66d' : '#aaffde')
 const gaussianCenter = computed(() => props.origin || props.center)
 </script>
 

@@ -1,8 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { createGrid, displayToIndex, gridPeak, gridRanges, gridPeakFromRanges, valueRange, updateValueRange, makePreset, paintStroke } from '../src/lib/grid.js'
+import { createGrid, displayToIndex, gridPeak, gridRanges, gridPeakFromRanges, valueRange, updateValueRange, paintStroke } from '../src/lib/grid.js'
 import { paintBrushStroke } from '../src/lib/brushes.js'
-import { fft2D } from './helpers/fft.js'
 
 test('Ranges use actual values for single samples and wholly positive or negative canvases', () => {
   for (const values of [[], [2], [-3], [1, 2, 1], [-4, -2, -4], [0, 0], [-2, 0, 3]]) {
@@ -17,7 +16,7 @@ test('Ranges use actual values for single samples and wholly positive or negativ
 })
 
 test('Incremental ranges match complete scans for every brush and drawing mode', () => {
-  for (const size of [1, 2, 16]) for (const shape of ['dot', 'square', 'line', 'wave', 'gaussian']) {
+  for (const size of [1, 2, 3, 5, 9, 16, 33]) for (const shape of ['dot', 'square', 'line', 'wave', 'gaussian']) {
     const values = new Float64Array(size * size)
     let range = valueRange(values)
     for (let step = 0; step < 36; step++) {
@@ -42,7 +41,7 @@ test('Extrema counts avoid rescanning unchanged zero pixels and detect removal o
   assert.deepEqual(updateValueRange(values, range, changes), valueRange(values))
 })
 
-for (const size of [1, 2, 4, 8]) test(`${size} × ${size}: the displayed center maps to zero and every pixel maps uniquely`, () => {
+for (const size of [1, 2, 3, 4, 5, 8, 9, 17, 33]) test(`${size} × ${size}: the displayed center maps to zero and every pixel maps uniquely`, () => {
   const center = Math.floor(size / 2)
   assert.equal(displayToIndex(center, center, size), 0)
   const indices = new Set()
@@ -81,14 +80,4 @@ test('Circular brushes increase area and clip at the canvas boundary', () => {
   paintStroke(clipped.real, 16, { x: 0, y: 0 }, { x: 0, y: 0 }, 9, 1)
   assert.equal(clipped.real[displayToIndex(15, 0, 16)], 0)
   assert.equal(clipped.real[displayToIndex(0, 15, 16)], 0)
-})
-
-test('Cosine preset produces two real frequencies and negligible imaginary values', async () => {
-  const size = 64
-  const grid = makePreset(size, 'wave')
-  const transformed = await fft2D(grid.real, grid.imaginary, size)
-  assert.ok(Math.abs(transformed.real[6] - size / 2) < 1e-8)
-  assert.ok(Math.abs(transformed.real[size - 6] - size / 2) < 1e-8)
-  assert.equal(transformed.real.filter(value => Math.abs(value) > 1e-8).length, 2)
-  assert.ok(transformed.imaginary.every(value => Math.abs(value) < 1e-8))
 })

@@ -38,8 +38,8 @@ function getPalette(logarithmic) {
   for (let i = 1; i <= paletteSteps; i++) {
     const relative = i / paletteSteps
     const level = logarithmic ? Math.log1p(80 * relative) / denominator : relative
-    const nextPositive = packColor(Math.round(13 + 102 * level), Math.round(22 + 216 * level), Math.round(28 + 174 * level)) >>> 0
-    const nextNegative = packColor(Math.round(13 + 231 * level), Math.round(22 + 119 * level), Math.round(28 + 91 * level)) >>> 0
+    const nextPositive = packColor(Math.round(13 + 157 * level), Math.round(22 + 233 * level), Math.round(28 + 194 * level)) >>> 0
+    const nextNegative = packColor(Math.round(13 + 242 * level), Math.round(22 + 208 * level), Math.round(28 + 81 * level)) >>> 0
     // Only cache intervals whose endpoints round to the exact same RGB color.
     // Color boundaries retain the original formula, with no quantization.
     if (previousPositive === nextPositive) positive[i - 1] = previousPositive
@@ -60,8 +60,7 @@ export function renderGridPixels(values, size, peak, logarithmic, pixels, bounds
   const right = bounds ? bounds.right : size - 1
   const bottom = bounds ? bounds.bottom : size - 1
   const scale = peak > 1e-12 ? peak : 1
-  const half = Math.floor(size / 2)
-  const mask = size - 1 // All supported FFT dimensions are powers of two.
+  const half = Math.ceil(size / 2)
   const logDenominator = Math.log(81)
   let packed = packedViews.get(pixels)
   if (!packed && pixels.byteOffset % 4 === 0) {
@@ -71,10 +70,10 @@ export function renderGridPixels(values, size, peak, logarithmic, pixels, bounds
   let previousValue = NaN, previousColor = zeroColor
   const palette = packed ? getPalette(logarithmic) : null
   for (let y = top; y <= bottom; y++) {
-    const sourceRow = ((y + half) & mask) * size
+    const sourceRow = ((y + half) % size) * size
     let index = (y * size + left) * 4
     for (let x = left; x <= right; x++, index += 4) {
-      const value = values[sourceRow + ((x + half) & mask)]
+      const value = values[sourceRow + ((x + half) % size)]
       if (packed && value === 0) {
         packed[index / 4] = zeroColor
         continue
@@ -95,9 +94,9 @@ export function renderGridPixels(values, size, peak, logarithmic, pixels, bounds
       }
       const level = logarithmic ? Math.log1p(80 * relative) / logDenominator : relative
       const positive = value >= 0
-      const red = Math.round(13 + ((positive ? 115 : 244) - 13) * level)
-      const green = Math.round(22 + ((positive ? 238 : 141) - 22) * level)
-      const blue = Math.round(28 + ((positive ? 202 : 119) - 28) * level)
+      const red = Math.round(13 + ((positive ? 170 : 255) - 13) * level)
+      const green = Math.round(22 + ((positive ? 255 : 230) - 22) * level)
+      const blue = Math.round(28 + ((positive ? 222 : 109) - 28) * level)
       if (packed) {
         previousValue = value
         previousColor = packColor(red, green, blue)

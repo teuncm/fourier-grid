@@ -37,7 +37,7 @@ function getMapping(size, symmetry, sourceSlice) {
   const key = `${size}:${symmetry.slices}:${symmetry.angle % 360}:${sourceSlice}`
   if (mapping?.key === key) return mapping
   const sourceMask = new Uint8Array(size * size), sources = new Int32Array(size * size).fill(-1)
-  const center = (size - 1) / 2, half = Math.floor(size / 2), mask = size - 1
+  const center = (size - 1) / 2, half = Math.ceil(size / 2)
   const rotations = Array.from({ length: symmetry.slices }, (_, i) => ({ cosine: Math.cos(i * turn / symmetry.slices), sine: Math.sin(i * turn / symmetry.slices) }))
   const sectorKey = `${size}:${symmetry.slices}:${symmetry.angle % 360}`
   if (sectors?.key !== sectorKey) {
@@ -46,7 +46,7 @@ function getMapping(size, symmetry, sourceSlice) {
     sectors = { key: sectorKey, slices }
   }
   for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) {
-    if (sectors.slices[y * size + x] === sourceSlice) sourceMask[((y + half) & mask) * size + ((x + half) & mask)] = 1
+    if (sectors.slices[y * size + x] === sourceSlice) sourceMask[((y + half) % size) * size + ((x + half) % size)] = 1
   }
   for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) {
     const slice = sectors.slices[y * size + x]
@@ -57,7 +57,7 @@ function getMapping(size, symmetry, sourceSlice) {
     if (sx < -.5 || sy < -.5 || sx > size - .5 || sy > size - .5) continue
     const px = Math.round(sx), py = Math.round(sy)
     if (px >= 0 && py >= 0 && px < size && py < size) {
-      const index = ((py + half) & mask) * size + ((px + half) & mask)
+      const index = ((py + half) % size) * size + ((px + half) % size)
       if (sourceMask[index]) { sources[y * size + x] = index; continue }
     }
     // Nearest inverse sampling avoids holes in rotated raster copies. At a
@@ -65,7 +65,7 @@ function getMapping(size, symmetry, sourceSlice) {
     let nearest = -1, distance = Infinity
     for (const py of [Math.floor(sy + 1e-10), Math.ceil(sy - 1e-10)]) for (const px of [Math.floor(sx + 1e-10), Math.ceil(sx - 1e-10)]) {
       if (px < 0 || py < 0 || px >= size || py >= size) continue
-      const index = ((py + half) & mask) * size + ((px + half) & mask)
+      const index = ((py + half) % size) * size + ((px + half) % size)
       const d = (px - sx) ** 2 + (py - sy) ** 2
       if (sourceMask[index] && d < distance) { nearest = index; distance = d }
     }
@@ -101,7 +101,7 @@ export function paintSymmetricStroke(values, size, from, to, brush, value, origi
   let left = size, top = size, right = -1, bottom = -1
   let oldMin = Infinity, oldMax = -Infinity, newMin = Infinity, newMax = -Infinity
   let oldMinCount = 0, oldMaxCount = 0, newMinCount = 0, newMaxCount = 0
-  const half = Math.floor(size / 2), mask = size - 1
+  const half = Math.ceil(size / 2)
   const visited = brush.mode === 'add' && !erase ? options.visited || new Uint8Array(values.length) : null
   function write(index, sample, x, y) {
     const previous = values[index]
@@ -117,10 +117,10 @@ export function paintSymmetricStroke(values, size, from, to, brush, value, origi
     if (y < top) top = y
     if (y > bottom) bottom = y
   }
-  if (wiping) for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) write(((y + half) & mask) * size + ((x + half) & mask), 0, x, y)
+  if (wiping) for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) write(((y + half) % size) * size + ((x + half) % size), 0, x, y)
   for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) {
     const source = sources[y * size + x]
-    if (source >= 0 && marks[source] === epoch) write(((y + half) & mask) * size + ((x + half) & mask), samples[source], x, y)
+    if (source >= 0 && marks[source] === epoch) write(((y + half) % size) * size + ((x + half) % size), samples[source], x, y)
   }
   // Inverse sampling can miss a rotated one-pixel footprint. Seed the nearest
   // destination for each finite brush cell; shared Add masks prevent duplicates.
@@ -128,12 +128,12 @@ export function paintSymmetricStroke(values, size, from, to, brush, value, origi
   if (finiteBrush) for (let slice = 0; slice < symmetry.slices; slice++) {
     const angle = slice * turn / symmetry.slices, cosine = Math.cos(angle), sine = Math.sin(angle)
     for (const source of hits) {
-      const sx = ((source % size + half) & mask) - center
-      const sy = ((Math.floor(source / size) + half) & mask) - center
+      const sx = ((source % size + Math.floor(size / 2)) % size) - center
+      const sy = ((Math.floor(source / size) + Math.floor(size / 2)) % size) - center
       const x = Math.round(center + sx * cosine - sy * sine)
       const y = Math.round(center + sx * sine + sy * cosine)
       if (x < 0 || y < 0 || x >= size || y >= size || sectors.slices[y * size + x] !== (sourceSlice + slice) % symmetry.slices) continue
-      write(((y + half) & mask) * size + ((x + half) & mask), samples[source], x, y)
+      write(((y + half) % size) * size + ((x + half) % size), samples[source], x, y)
     }
   }
   return {

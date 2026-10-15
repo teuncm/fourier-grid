@@ -4,7 +4,7 @@ import { stageTextureValues } from '../src/lib/canvas-renderer.js'
 import { displayToIndex } from '../src/lib/grid.js'
 
 test('GPU staging centers each grid and preserves the original float64 samples', () => {
-  for (const size of [1, 2, 4, 128, 1024]) {
+  for (const size of [1, 2, 3, 4, 5, 129, 1024, 1025]) {
     const values = Float64Array.from({ length: size * size }, (_, i) => Math.sin(i * .73))
     values[0] = 1
     const before = values.slice(), upload = new Float32Array(values.length)

@@ -9,7 +9,7 @@ export function createGrid(size) {
 
 // Both canvases show the origin in the middle; arrays use FFT ordering.
 export function displayToIndex(x, y, size) {
-  const half = Math.floor(size / 2)
+  const half = Math.ceil(size / 2)
   return ((y + half) % size) * size + ((x + half) % size)
 }
 
@@ -58,28 +58,4 @@ export function updateValueRange(values, current, changes) {
   // Rescan only when the last occurrence of an extreme was removed.
   if (minCount === 0 || maxCount === 0) return valueRange(values)
   return { min, max, minCount, maxCount }
-}
-
-export function makePreset(size, preset) {
-  const grid = createGrid(size)
-  const center = Math.floor(size / 2)
-  for (let y = 0; y < size; y++) {
-    for (let x = 0; x < size; x++) {
-      const dx = x - center
-      const dy = y - center
-      let value = 0
-      if (preset === 'dot') value = dx === 0 && dy === 0 ? 1 : 0
-      if (preset === 'slits') {
-        const separation = Math.round(size * 0.12)
-        const width = Math.max(1, Math.round(size * 0.018))
-        value = Math.abs(Math.abs(dx) - separation) < width && Math.abs(dy) < size * 0.22 ? 1 : 0
-      }
-      if (preset === 'ring') {
-        value = Math.abs(Math.hypot(dx, dy) - size * 0.22) < Math.max(1, size * 0.012) ? 1 : 0
-      }
-      if (preset === 'wave') value = Math.cos((2 * Math.PI * dx * 6) / size)
-      grid.real[displayToIndex(x, y, size)] = value
-    }
-  }
-  return grid
 }

@@ -8,7 +8,7 @@ const sample = (grid, x, y, size) => grid.real[displayToIndex(x, y, size)]
 const waveBrush = { shape: 'wave', wavelength: 8, angle: 0 }
 
 test('Gaussian samples match the 2D formula with signed peak values, changing σ, and clipped centers', () => {
-  for (const size of [1, 2, 32, 1024]) {
+  for (const size of [1, 2, 3, 5, 32, 33, 1024, 1025]) {
     const values = new Float64Array(size * size)
     for (const [sigma, center, value] of [[.5, { x: 0, y: 0 }, 1], [Math.max(.5, size / 8), { x: Math.floor(size / 2), y: Math.floor(size / 2) }, -.7]]) {
       paintBrushStroke(values, size, center, center, { shape: 'gaussian', sigma, mode: 'wipe' }, value)
@@ -61,7 +61,7 @@ test('A centered Gaussian transforms into a Gaussian spectrum', async () => {
 })
 
 test('Separated wave generation matches the direct cosine formula while moving, rotating, and changing frequency', () => {
-  for (const size of [1, 2, 4, 32, 1024]) {
+  for (const size of [1, 2, 3, 4, 5, 32, 33, 1024, 1025]) {
     const values = new Float64Array(size * size)
     for (const [angle, frequency, origin] of [[0, .5, { x: 0, y: 0 }], [45, size / 2, { x: size - 1, y: 0 }], [175, Math.max(.5, size / 3), { x: 0, y: size - 1 }], [45, 1, { x: 0, y: 0 }]]) {
       const brush = { shape: 'wave', mode: 'wipe', angle, wavelength: size / frequency }

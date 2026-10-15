@@ -21,7 +21,7 @@ void main() {
   float x = 80.0 * relative;
   float boosted = x < 0.001 ? x * (1.0 - x * 0.5) : log(1.0 + x);
   float level = u_logarithmic ? boosted / log(81.0) : relative;
-  vec3 endpoint = value >= 0.0 ? vec3(115.0, 238.0, 202.0) : vec3(244.0, 141.0, 119.0);
+  vec3 endpoint = value >= 0.0 ? vec3(170.0, 255.0, 222.0) : vec3(255.0, 230.0, 109.0);
   vec3 rgb = floor(vec3(13.0, 22.0, 28.0) + (endpoint - vec3(13.0, 22.0, 28.0)) * level + 0.5);
   color = vec4(rgb / 255.0, 1.0);
 }`
@@ -43,11 +43,11 @@ export function stageTextureValues(values, size, peak, bounds, upload) {
   const width = bounds ? bounds.right - left + 1 : size
   const height = bounds ? bounds.bottom - top + 1 : size
   const scale = peak > 1e-12 ? peak : 1
-  const half = Math.floor(size / 2), mask = size - 1
+  const half = Math.ceil(size / 2)
   let offset = 0
   for (let y = top; y < top + height; y++) {
-    const row = ((y + half) & mask) * size
-    for (let x = left; x < left + width; x++) upload[offset++] = values[row + ((x + half) & mask)] / scale
+    const row = ((y + half) % size) * size
+    for (let x = left; x < left + width; x++) upload[offset++] = values[row + ((x + half) % size)] / scale
   }
   return { left, top, width, height, data: upload.subarray(0, offset) }
 }
