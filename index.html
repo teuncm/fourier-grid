@@ -5,11 +5,79 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="theme-color" content="#10191e">
-    <meta name="description" content="Edit a drawing and its Fourier transform.">
-    <title>Fourier Grid</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <meta name="description" content="Explore the 2D Fourier transform interactively. Draw in spatial or frequency space, edit complex signals, and experiment with brushes, filters, and symmetry.">
+    <meta name="robots" content="index, follow, max-image-preview:large">
+    <meta name="author" content="teuncm.nl">
+    <link rel="canonical" href="https://teuncm.nl/fourier-grid/">
+    <title>Fourier Grid | Interactive 2D Fourier Transform</title>
+
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="teuncm.nl">
+    <meta property="og:title" content="Fourier Grid | Interactive 2D Fourier Transform">
+    <meta property="og:description" content="Draw in either domain and see the Fourier transform in real time. Explore complex signals, filters, noise, and symmetry in your browser.">
+    <meta property="og:url" content="https://teuncm.nl/fourier-grid/">
+    <meta property="og:image" content="https://teuncm.nl/fourier-grid/social-preview.png">
+    <meta property="og:image:secure_url" content="https://teuncm.nl/fourier-grid/social-preview.png">
+    <meta property="og:image:type" content="image/png">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:image:alt" content="Fourier Grid showing the real and imaginary parts of a complex signal alongside its 2D Fourier transform.">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Fourier Grid | Interactive 2D Fourier Transform">
+    <meta name="twitter:description" content="Draw in either domain and see the Fourier transform in real time. An interactive complex-signal playground by teuncm.nl.">
+    <meta name="twitter:image" content="https://teuncm.nl/fourier-grid/social-preview.png">
+    <meta name="twitter:image:alt" content="Four editable grids connect a complex spatial signal with its Fourier spectrum.">
+
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "WebPage",
+            "@id": "https://teuncm.nl/fourier-grid/#page",
+            "url": "https://teuncm.nl/fourier-grid/",
+            "name": "Fourier Grid | Interactive 2D Fourier Transform",
+            "description": "An interactive 2D Fourier transform playground for drawing and editing complex signals in spatial and frequency domains.",
+            "inLanguage": "en",
+            "isPartOf": { "@type": "WebSite", "name": "teuncm.nl", "url": "https://teuncm.nl/" },
+            "primaryImageOfPage": { "@type": "ImageObject", "url": "https://teuncm.nl/fourier-grid/social-preview.png", "width": 1200, "height": 630 },
+            "mainEntity": { "@id": "https://teuncm.nl/fourier-grid/#app" }
+          },
+          {
+            "@type": "WebApplication",
+            "@id": "https://teuncm.nl/fourier-grid/#app",
+            "name": "Fourier Grid",
+            "url": "https://teuncm.nl/fourier-grid/",
+            "description": "Draw on four linked canvases to explore forward and inverse 2D Fourier transforms, real and imaginary components, magnitude and phase, and frequency filters.",
+            "applicationCategory": "EducationalApplication",
+            "operatingSystem": "Any",
+            "browserRequirements": "Requires JavaScript and WebAssembly.",
+            "isAccessibleForFree": true,
+            "inLanguage": "en",
+            "image": "https://teuncm.nl/fourier-grid/social-preview.png",
+            "featureList": ["Forward and inverse complex 2D Fourier transforms", "Real/imaginary and magnitude/phase editing", "Drawing, noise, and Gaussian filter brushes", "Symmetry and repetition", "Undo, redo, and fullscreen"]
+          }
+        ]
+      }
+    </script>
+    <style>
+      .app-fallback { max-width: 42rem; margin: 4rem auto; padding: 1.5rem; font: 1rem/1.65 system-ui, sans-serif; color: #dcebe7; background: #10191e; border-radius: .75rem; }
+      .app-fallback h1 { font-size: 1.75rem; line-height: 1.25; }
+      .app-fallback a { color: #aaffde; }
+    </style>
   </head>
   <body>
-    <div id="app"></div>
+    <div id="app">
+      <main class="app-fallback">
+        <h1>Fourier Grid: Interactive 2D Fourier Transform</h1>
+        <p>Draw in the spatial or frequency domain and see the forward or inverse Fourier transform. Four editable canvases show the real and imaginary parts of a complex signal, with independent magnitude and phase views.</p>
+        <p>Experiment with shapes, waves, Gaussian filters, noise, symmetry, and repeating patterns. The free playground runs in your browser, with live updates, undo and redo, and fullscreen controls.</p>
+        <p>A project from <a href="https://teuncm.nl/">teuncm.nl</a>.</p>
+        <noscript><p>Enable JavaScript to load the interactive canvases and drawing tools.</p></noscript>
+      </main>
+    </div>
     <script type="module" src="/src/main.js"></script>
   </body>
 </html>

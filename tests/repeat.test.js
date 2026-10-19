@@ -57,19 +57,19 @@ test('Wipe clears once then keeps all copies, follows the current segment, and r
 
 test('Wave and Gaussian repeat just the source tile, preserving their formulas', () => {
   const size=8, point={x:5,y:5}, repeat={columns:2,rows:2}
-  for(const shape of ['wave','gaussian']) {
+  for(const shape of ['wave','gaussian','inverted-gaussian']) {
     const values=new Float64Array(64), brush={shape,mode:'paste',angle:0,wavelength:4,sigma:1}
     paintRepeatedStroke(values,size,point,point,brush,-.5,point,repeat)
     for(let y=0;y<size;y++) for(let x=0;x<size;x++) {
       const dx=x%4-1, dy=y%4-1
-      const expected=-.5*(shape==='wave'?Math.cos(2*Math.PI*dx/4):Math.exp(-(dx*dx+dy*dy)/2))
+      const expected=-.5*(shape==='wave'?Math.cos(2*Math.PI*dx/4):shape==='inverted-gaussian'?1-Math.exp(-(dx*dx+dy*dy)/2):Math.exp(-(dx*dx+dy*dy)/2))
       assert.ok(Math.abs(sample(values,size,x,y)-expected)<1e-14)
     }
   }
 })
 
 test('All repeated brushes and modes retain accurate ranges and changed bounds on tiny, odd, and even grids', () => {
-  for(const size of [1,2,3,7,16,31]) for(const shape of ['dot','square','line','wave','gaussian']) {
+  for(const size of [1,2,3,7,16,31]) for(const shape of ['dot','square','line','wave','gaussian','inverted-gaussian']) {
     const values=new Float64Array(size*size)
     let range=valueRange(values)
     for(let step=0;step<9;step++) {

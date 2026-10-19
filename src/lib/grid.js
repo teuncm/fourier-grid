@@ -59,3 +59,19 @@ export function updateValueRange(values, current, changes) {
   if (minCount === 0 || maxCount === 0) return valueRange(values)
   return { min, max, minCount, maxCount }
 }
+
+export function createValueChanges() {
+  return { bounds: null, oldMin: Infinity, oldMax: -Infinity, newMin: Infinity, newMax: -Infinity, oldMinCount: 0, oldMaxCount: 0, newMinCount: 0, newMaxCount: 0 }
+}
+
+export function recordValueChange(result, previous, value, x, y) {
+  if (previous < result.oldMin) { result.oldMin = previous; result.oldMinCount = 1 } else if (previous === result.oldMin) result.oldMinCount++
+  if (previous > result.oldMax) { result.oldMax = previous; result.oldMaxCount = 1 } else if (previous === result.oldMax) result.oldMaxCount++
+  if (value < result.newMin) { result.newMin = value; result.newMinCount = 1 } else if (value === result.newMin) result.newMinCount++
+  if (value > result.newMax) { result.newMax = value; result.newMaxCount = 1 } else if (value === result.newMax) result.newMaxCount++
+  if (!result.bounds) result.bounds = { left: x, top: y, right: x, bottom: y }
+  else {
+    result.bounds.left = Math.min(result.bounds.left, x); result.bounds.right = Math.max(result.bounds.right, x)
+    result.bounds.top = Math.min(result.bounds.top, y); result.bounds.bottom = Math.max(result.bounds.bottom, y)
+  }
+}

@@ -45,9 +45,21 @@ export function stageTextureValues(values, size, peak, bounds, upload) {
   const scale = peak > 1e-12 ? peak : 1
   const half = Math.ceil(size / 2)
   let offset = 0
+  const firstColumn = (left + half) % size, firstWidth = Math.min(width, size - firstColumn)
   for (let y = top; y < top + height; y++) {
     const row = ((y + half) % size) * size
-    for (let x = left; x < left + width; x++) upload[offset++] = values[row + ((x + half) % size)] / scale
+    if (scale === 1) {
+      // TypedArray.set performs the Float64 -> Float32 conversion natively.
+      upload.set(values.subarray(row + firstColumn, row + firstColumn + firstWidth), offset)
+      offset += firstWidth
+      if (firstWidth < width) {
+        upload.set(values.subarray(row, row + width - firstWidth), offset)
+        offset += width - firstWidth
+      }
+    } else {
+      for (let x = 0; x < firstWidth; x++) upload[offset++] = values[row + firstColumn + x] / scale
+      for (let x = firstWidth; x < width; x++) upload[offset++] = values[row + x - firstWidth] / scale
+    }
   }
   return { left, top, width, height, data: upload.subarray(0, offset) }
 }

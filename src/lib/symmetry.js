@@ -1,3 +1,4 @@
+import { isFieldBrush, usesStrokeMask } from './brush-modes.js'
 import { paintBrushStroke } from './brushes.js'
 import { valueRange } from './grid.js'
 
@@ -76,7 +77,7 @@ function getMapping(size, symmetry, sourceSlice) {
 }
 
 export function paintSymmetricStroke(values, size, from, to, brush, value, origin, symmetry, options = {}) {
-  if (!symmetry?.enabled) return paintBrushStroke(values, size, from, to, brush, value, origin, options)
+  if (brush.shape === 'fill' || !symmetry?.enabled) return paintBrushStroke(values, size, from, to, brush, value, origin, options)
   const erase = options.erase || false, wiping = brush.mode === 'wipe' && !erase
   const sourceSlice = sliceAt(brush.mode === 'wipe' ? to : origin || from, size, symmetry)
   const { sourceMask, sources } = getMapping(size, symmetry, sourceSlice)
@@ -86,7 +87,7 @@ export function paintSymmetricStroke(values, size, from, to, brush, value, origi
   if (++workspace.epoch > 0xffffffff) { workspace.marks.fill(0); workspace.epoch = 1 }
   const { samples, marks, hits, epoch } = workspace
   hits.length = 0
-  const finiteBrush = !['wave', 'gaussian'].includes(brush.shape)
+  const finiteBrush = !isFieldBrush(brush.shape)
   paintBrushStroke(samples, size, from, to, { ...brush, mode: wiping ? 'wipe' : 'paste' }, value, origin || from, {
     erase, sampleOnly: true,
     onSample(index, sample) {
@@ -102,10 +103,11 @@ export function paintSymmetricStroke(values, size, from, to, brush, value, origi
   let oldMin = Infinity, oldMax = -Infinity, newMin = Infinity, newMax = -Infinity
   let oldMinCount = 0, oldMaxCount = 0, newMinCount = 0, newMaxCount = 0
   const half = Math.ceil(size / 2)
-  const visited = brush.mode === 'add' && !erase ? options.visited || new Uint8Array(values.length) : null
+  const multiplying = brush.mode === 'multiply' && !erase
+  const visited = usesStrokeMask(brush.mode) && !erase ? options.visited || new Uint8Array(values.length) : null
   function write(index, sample, x, y) {
     const previous = values[index]
-    if (visited) { if (visited[index]) return; visited[index] = 1; sample += previous }
+    if (visited) { if (visited[index]) return; visited[index] = 1; sample = multiplying ? previous * sample : previous + sample }
     if (sample === previous) return
     values[index] = sample
     if (previous < oldMin) { oldMin = previous; oldMinCount = 1 } else if (previous === oldMin) oldMinCount++
@@ -118,12 +120,17 @@ export function paintSymmetricStroke(values, size, from, to, brush, value, origi
     if (y > bottom) bottom = y
   }
   if (wiping) for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) write(((y + half) % size) * size + ((x + half) % size), 0, x, y)
+  const copied = brush.noise ? new Uint8Array(values.length) : null
   for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) {
     const source = sources[y * size + x]
-    if (source >= 0 && marks[source] === epoch) write(((y + half) % size) * size + ((x + half) % size), samples[source], x, y)
+    if (source >= 0 && marks[source] === epoch) {
+      const index = ((y + half) % size) * size + ((x + half) % size)
+      if (copied) copied[index] = 1
+      write(index, samples[source], x, y)
+    }
   }
   // Inverse sampling can miss a rotated one-pixel footprint. Seed the nearest
-  // destination for each finite brush cell; shared Add masks prevent duplicates.
+  // destination for each finite brush cell; shared stroke masks prevent duplicates.
   const center = (size - 1) / 2
   if (finiteBrush) for (let slice = 0; slice < symmetry.slices; slice++) {
     const angle = slice * turn / symmetry.slices, cosine = Math.cos(angle), sine = Math.sin(angle)
@@ -133,7 +140,9 @@ export function paintSymmetricStroke(values, size, from, to, brush, value, origi
       const x = Math.round(center + sx * cosine - sy * sine)
       const y = Math.round(center + sx * sine + sy * cosine)
       if (x < 0 || y < 0 || x >= size || y >= size || sectors.slices[y * size + x] !== (sourceSlice + slice) % symmetry.slices) continue
-      write(((y + half) % size) * size + ((x + half) % size), samples[source], x, y)
+      const index = ((y + half) % size) * size + ((x + half) % size)
+      if (copied) { if (copied[index]) continue; copied[index] = 1 }
+      write(index, samples[source], x, y)
     }
   }
   return {

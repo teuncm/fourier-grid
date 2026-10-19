@@ -7,6 +7,8 @@
     "dev": "vite",
     "test": "node --test",
     "bench": "node scripts/benchmark-pipeline.mjs",
+    "bench:editing": "node scripts/benchmark-editing.mjs",
+    "bench:drawing": "node scripts/benchmark-drawing.mjs",
     "build": "vite build",
     "preview": "vite preview"
   },

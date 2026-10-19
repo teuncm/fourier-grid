@@ -119,3 +119,33 @@ test('Adding perpendicular waves preserves both pairs of Fourier frequencies', a
   assert.equal(transformed.real.filter(value => Math.abs(value) > 1e-8).length, 4)
   assert.ok(transformed.imaginary.every(value => Math.abs(value) < 1e-8))
 })
+
+for (const shape of ['dot', 'square', 'line']) test(`${shape}: bounded Wipe continuations match full clears while changing size, angle, value and center`, () => {
+  for (const size of [1, 2, 3, 7, 8, 31, 128]) {
+    const full = Float64Array.from({ length: size * size }, (_, i) => Math.sin(i) * 4)
+    const bounded = full.slice()
+    let clearBounds
+    const points = [{ x: 0, y: 0 }, { x: size - 1, y: size - 1 }, { x: Math.floor(size / 2), y: Math.floor(size / 2) }, { x: 0, y: size - 1 }]
+    for (let step = 0; step < 12; step++) {
+      const point = points[step % points.length], value = [1, -.4, 0, .75][step % 4]
+      const brush = { shape, size: [1, 3, 9][step % 3], angle: step * 37, mode: 'wipe' }
+      const expected = paintBrushStroke(full, size, point, point, brush, value)
+      const actual = paintBrushStroke(bounded, size, point, point, brush, value, point, { clearBounds })
+      assert.deepEqual(bounded, full)
+      assert.deepEqual(actual, expected)
+      clearBounds = actual.contentBounds
+      let nonzero = 0
+      for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) if (bounded[displayToIndex(x, y, size)] !== 0) {
+        nonzero++
+        assert.ok(clearBounds && x >= clearBounds.left && x <= clearBounds.right && y >= clearBounds.top && y <= clearBounds.bottom)
+      }
+      if (!nonzero) assert.equal(clearBounds, null)
+    }
+    // A new stroke must start with an unknown footprint after external changes.
+    bounded.fill(3); full.fill(3)
+    const point = points[0], brush = { shape, size: 1, angle: 0, mode: 'wipe' }
+    paintBrushStroke(bounded, size, point, point, brush, .6)
+    paintBrushStroke(full, size, point, point, brush, .6)
+    assert.deepEqual(bounded, full)
+  }
+})

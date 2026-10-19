@@ -16,7 +16,7 @@ test('Ranges use actual values for single samples and wholly positive or negativ
 })
 
 test('Incremental ranges match complete scans for every brush and drawing mode', () => {
-  for (const size of [1, 2, 3, 5, 9, 16, 33]) for (const shape of ['dot', 'square', 'line', 'wave', 'gaussian']) {
+  for (const size of [1, 2, 3, 5, 9, 16, 33]) for (const shape of ['dot', 'square', 'line', 'wave', 'gaussian', 'inverted-gaussian']) {
     const values = new Float64Array(size * size)
     let range = valueRange(values)
     for (let step = 0; step < 36; step++) {

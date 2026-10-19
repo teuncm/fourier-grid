@@ -8,3 +8,14 @@ export function canvasPoint(clientX, clientY, rect, size, snapToGrid = false) {
       ? origin : Math.max(0, Math.min(size - 1, Math.floor(y / rect.height * size))),
   }
 }
+
+export const manipulationSnapDistance = 8
+
+// Keep the tolerance in screen pixels, before converting a drag to grid units.
+// Each axis snaps independently to its value at the start of the gesture.
+export function snapManipulationDelta(dx, dy, enabled = false) {
+  return {
+    x: enabled && Math.abs(dx) <= manipulationSnapDistance ? 0 : dx,
+    y: enabled && Math.abs(dy) <= manipulationSnapDistance ? 0 : dy,
+  }
+}

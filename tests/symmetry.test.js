@@ -92,7 +92,7 @@ test('Erasing in Wipe follows the current pointer slice, matching its preview', 
 })
 
 test('All brushes, modes, arbitrary slice counts, and rotations retain accurate ranges and bounds', () => {
-  for(const size of [1,2,3,5,9,16,33]) for(const shape of ['dot','square','line','wave','gaussian']) for(const slices of [2,3,6,8]) {
+  for(const size of [1,2,3,5,9,16,33]) for(const shape of ['dot','square','line','wave','gaussian','inverted-gaussian']) for(const slices of [2,3,6,8]) {
     const values = new Float64Array(size*size)
     let range=valueRange(values)
     for(let step=0;step<9;step++) {

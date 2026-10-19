@@ -1,6 +1,17 @@
+import { isFieldBrush, isGaussianBrush, isBasicBrush, usesStrokeMask } from './brush-modes.js'
+import { getRadialField, isRadialBrush } from './radial.js'
+
 const footprints = new Map()
 let waveField = null
 let gaussianField = null
+
+// Stateless signed white noise: stable across frames and shared pattern copies.
+function noiseSample(x, y, seed) {
+  let hash = (seed | 0) ^ Math.imul(x + 1, 0x9e3779b1) ^ Math.imul(y + 1, 0x85ebca77)
+  hash = Math.imul(hash ^ (hash >>> 16), 0x7feb352d)
+  hash = Math.imul(hash ^ (hash >>> 15), 0x846ca68b)
+  return ((hash ^ (hash >>> 16)) >>> 0) / 0xffffffff * 2 - 1
+}
 
 function cachedFootprint(key) {
   if (!footprints.has(key)) return null
@@ -141,7 +152,8 @@ function getWaveField(size, brush, origin) {
 }
 
 function getGaussianField(size, brush, origin) {
-  const key = `${size}:${brush.sigma}:${origin.x}:${origin.y}`
+  const inverted = brush.shape === 'inverted-gaussian'
+  const key = `${brush.shape}:${size}:${brush.sigma}:${origin.x}:${origin.y}`
   if (gaussianField?.key === key) return gaussianField.values
   const values = gaussianField?.values.length === size * size ? gaussianField.values : new Float64Array(size * size)
   const columns = new Float64Array(size)
@@ -152,7 +164,10 @@ function getGaussianField(size, brush, origin) {
   for (let y = 0; y < size; y++) {
     const rowValue = Math.exp(-((y - origin.y) ** 2) / denominator)
     const row = ((y + half) % size) * size
-    for (let x = 0; x < size; x++) values[row + ((x + half) % size)] = columns[x] * rowValue
+    for (let x = 0; x < size; x++) {
+      const gaussian = columns[x] * rowValue
+      values[row + ((x + half) % size)] = inverted ? 1 - gaussian : gaussian
+    }
   }
   gaussianField = { key, values }
   return values
@@ -199,27 +214,33 @@ export function getWavePreview(brush, size, origin) {
   return { peaks: peaks.join(''), troughs: troughs.join('') }
 }
 
-export function paintBrushStroke(values, size, from, to, brush, value, origin = from, { visited, erase = false, onSample, sampleOnly = false } = {}) {
-  const additive = brush.mode === 'add' && !erase
+export function paintBrushStroke(values, size, from, to, brush, value, origin = from, { visited, erase = false, onSample, sampleOnly = false, clearBounds } = {}) {
+  const multiplying = brush.mode === 'multiply' && !erase
   // A shared mask applies one contribution per pixel over the whole stroke.
-  const touched = additive ? visited || new Uint8Array(values.length) : null
+  const touched = usesStrokeMask(brush.mode) && !erase ? visited || new Uint8Array(values.length) : null
   let changed = false
   let left = size, top = size, right = -1, bottom = -1
   let oldPeak = 0, newPeak = 0
   let oldMin = Infinity, oldMax = -Infinity, newMin = Infinity, newMax = -Infinity
   let oldMinCount = 0, oldMaxCount = 0, newMinCount = 0, newMaxCount = 0
   const replacing = brush.mode === 'wipe' && !erase
-  const fullCanvas = brush.shape === 'wave' || brush.shape === 'gaussian'
+  const fullCanvas = isFieldBrush(brush.shape)
+  const noise = brush.noise && isBasicBrush(brush.shape) && !erase
   const trackRangeChanges = !replacing && !fullCanvas
   let clearing = false, paintedCount = 0, range = null
+  let paintedLeft = size, paintedTop = size, paintedRight = -1, paintedBottom = -1
   const write = (index, sample, x, y) => {
     onSample?.(index, sample, x, y)
     if (sampleOnly) return
     const previous = values[index]
-    if (additive) {
+    if (touched) {
       if (touched[index]) return
       touched[index] = 1
-      sample = previous + sample
+      sample = multiplying ? previous * sample : previous + sample
+    }
+    if (replacing && !clearing && sample !== 0 && x !== undefined) {
+      paintedLeft = Math.min(paintedLeft, x); paintedRight = Math.max(paintedRight, x)
+      paintedTop = Math.min(paintedTop, y); paintedBottom = Math.max(paintedBottom, y)
     }
     if (sample === previous) return
     values[index] = sample
@@ -248,6 +269,8 @@ export function paintBrushStroke(values, size, from, to, brush, value, origin = 
   }
   const result = () => ({
     bounds: changed ? { left, top, right, bottom } : null, oldPeak, newPeak,
+    contentBounds: replacing && !fullCanvas && !sampleOnly
+      ? paintedRight < 0 ? null : { left: paintedLeft, top: paintedTop, right: paintedRight, bottom: paintedBottom } : undefined,
     oldMin, oldMax, newMin, newMax, oldMinCount, oldMaxCount, newMinCount, newMaxCount,
     range: range || (replacing ? {
       min: paintedCount === values.length ? value : Math.min(0, value),
@@ -264,24 +287,41 @@ export function paintBrushStroke(values, size, from, to, brush, value, origin = 
     // Full-canvas brushes overwrite every sample; other shapes clear old pixels.
     if (!fullCanvas && !sampleOnly) {
       clearing = true
-      const half = Math.floor(size / 2)
-      for (let i = 0; i < values.length; i++) {
-        if (values[i] !== 0) write(i, 0, (i % size + half) % size, (Math.floor(i / size) + half) % size)
+      if (clearBounds === undefined) {
+        // First stamp: existing canvas contents can be anywhere.
+        const half = Math.floor(size / 2)
+        for (let i = 0; i < values.length; i++) {
+          if (values[i] !== 0) write(i, 0, (i % size + half) % size, (Math.floor(i / size) + half) % size)
+        }
+      } else if (clearBounds) {
+        // Later Wipe stamps have known support. null means already empty.
+        const half = Math.ceil(size / 2)
+        for (let y = clearBounds.top; y <= clearBounds.bottom; y++) {
+          const row = ((y + half) % size) * size
+          for (let x = clearBounds.left; x <= clearBounds.right; x++) {
+            const index = row + (x + half) % size
+            if (values[index] !== 0) write(index, 0, x, y)
+          }
+        }
       }
       clearing = false
     }
   }
   if (fullCanvas) {
-    const field = value === 0 ? null : brush.shape === 'gaussian'
+    const constant = brush.shape === 'fill'
+    const field = value === 0 || constant ? null : isRadialBrush(brush.shape) ? getRadialField(size, brush, origin) : isGaussianBrush(brush.shape)
       ? getGaussianField(size, brush, origin) : getWaveField(size, brush, origin)
+    const half = Math.floor(size / 2)
+    const sampleAt = i => field ? value * field[i] : constant
+      ? noise ? value * noiseSample((i % size + half) % size, (Math.floor(i / size) + half) % size, brush.noiseSeed) : value : 0
     if (sampleOnly) {
-      for (let i = 0; i < values.length; i++) write(i, field ? value * field[i] : 0)
+      for (let i = 0; i < values.length; i++) write(i, sampleAt(i))
       return result()
     }
     let min = Infinity, max = -Infinity
     let minCount = 0, maxCount = 0
     for (let i = 0; i < values.length; i++) {
-      write(i, field ? value * field[i] : 0)
+      write(i, sampleAt(i))
       const sample = values[i]
       if (sample < min) { min = sample; minCount = 1 }
       else if (sample === min) minCount++
@@ -310,8 +350,26 @@ export function paintBrushStroke(values, size, from, to, brush, value, origin = 
       const py = y + offsets[i + 1]
       if (px < 0 || py < 0 || px >= size || py >= size) continue
       const index = ((py + half) % size) * size + ((px + half) % size)
-      write(index, value, px, py)
+      write(index, noise ? value * noiseSample(px, py, brush.noiseSeed) : value, px, py)
     }
+  }
+  if (replacing && noise && !sampleOnly) {
+    // Only the final footprint can be nonzero after Wipe; avoid a full-grid scan.
+    let min = Infinity, max = -Infinity, minCount = 0, maxCount = 0, count = 0
+    for (let i = 0; i < offsets.length; i += 2) {
+      const x = Math.round(to.x) + offsets[i], y = Math.round(to.y) + offsets[i + 1]
+      if (x < 0 || y < 0 || x >= size || y >= size) continue
+      const sample = values[((y + half) % size) * size + ((x + half) % size)]
+      count++
+      if (sample < min) { min = sample; minCount = 1 } else if (sample === min) minCount++
+      if (sample > max) { max = sample; maxCount = 1 } else if (sample === max) maxCount++
+    }
+    const zeros = values.length - count
+    if (zeros) {
+      if (min > 0) { min = 0; minCount = zeros } else if (min === 0) minCount += zeros
+      if (max < 0) { max = 0; maxCount = zeros } else if (max === 0) maxCount += zeros
+    }
+    range = { min, max, minCount, maxCount }
   }
   return result()
 }

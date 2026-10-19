@@ -7,6 +7,48 @@ import { fft2D } from './helpers/fft.js'
 const sample = (grid, x, y, size) => grid.real[displayToIndex(x, y, size)]
 const waveBrush = { shape: 'wave', wavelength: 8, angle: 0 }
 
+test('Inverted Gaussian is the signed Gaussian complement across tiny, odd, even, and large grids', () => {
+  for (const size of [1, 2, 7, 32, 127, 1024]) {
+    for (const center of [{ x: 0, y: 0 }, { x: Math.floor(size / 2), y: Math.floor(size / 2) }]) {
+      for (const sigma of [.5, Math.max(.5, size / 4)]) {
+        const normal = new Float64Array(size * size), inverted = new Float64Array(size * size)
+        const brush = { shape: 'gaussian', sigma, mode: 'wipe' }
+        paintBrushStroke(normal, size, center, center, brush, -.7)
+        paintBrushStroke(inverted, size, center, center, { ...brush, shape: 'inverted-gaussian' }, -.7)
+        assert.equal(inverted[displayToIndex(center.x, center.y, size)], 0)
+        for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) {
+          const i = displayToIndex(x, y, size)
+          const expected = -.7 * (1 - Math.exp(-((x - center.x) ** 2 + (y - center.y) ** 2) / (2 * sigma ** 2)))
+          assert.ok(Math.abs(inverted[i] - expected) < 1e-15)
+          assert.ok(Math.abs(normal[i] + inverted[i] + .7) < 1e-15)
+        }
+      }
+    }
+  }
+})
+
+test('Gaussian and inverted Gaussian frequency masks reconstruct the original complex signal', async () => {
+  const size = 15, center = { x: 7, y: 7 }, input = createGrid(size)
+  for (let i = 0; i < size * size; i++) {
+    input.real[i] = Math.sin(i * .7) + .3
+    input.imaginary[i] = Math.cos(i * .3) - .2
+  }
+  const spectrum = await fft2D(input.real, input.imaginary, size)
+  const filtered = []
+  for (const shape of ['gaussian', 'inverted-gaussian']) {
+    const grid = { real: spectrum.real.slice(), imaginary: spectrum.imaginary.slice() }
+    for (const values of Object.values(grid)) paintBrushStroke(values, size, center, center, { shape, sigma: 2, mode: 'multiply' }, 1)
+    if (shape === 'inverted-gaussian') {
+      assert.ok(grid.real[0] === 0)
+      assert.ok(grid.imaginary[0] === 0)
+    }
+    filtered.push(await fft2D(grid.real, grid.imaginary, size, true))
+  }
+  for (const component of ['real', 'imaginary']) for (let i = 0; i < size * size; i++) {
+    assert.ok(Math.abs(filtered[0][component][i] + filtered[1][component][i] - input[component][i]) < 1e-9)
+  }
+})
+
 test('Gaussian samples match the 2D formula with signed peak values, changing σ, and clipped centers', () => {
   for (const size of [1, 2, 3, 5, 32, 33, 1024, 1025]) {
     const values = new Float64Array(size * size)

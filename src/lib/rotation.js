@@ -1,12 +1,5 @@
 import { displayToIndex } from './grid.js'
-
-export function createCanvasRotation(values, size) {
-  const original = values.slice(), stride = size + 2
-  // A zero border makes bilinear sampling at the canvas edges inexpensive.
-  const pixels = new Float64Array(stride * stride)
-  for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) pixels[(y + 1) * stride + x + 1] = values[displayToIndex(x, y, size)]
-  return { size, stride, original, pixels }
-}
+export { createCanvasSnapshot as createCanvasRotation } from './canvas-snapshot.js'
 
 export function rotateCanvasValues(values, snapshot, radians) {
   if (!Number.isFinite(radians)) throw new RangeError('Rotation angle must be finite.')

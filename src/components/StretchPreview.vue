@@ -16,7 +16,7 @@ const gridPath = computed(() => {
   return path
 })
 const axes = computed(() => [matrix.value.scaleX, matrix.value.scaleY].map((scale, index) => ({
-  index, direction: index * 90,
+  index, direction: -index * 90,
   scale, extent: Math.min(35, 16 * scale), color: scale >= 1 ? '#aaffde' : '#ffe66d',
 })))
 </script>

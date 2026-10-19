@@ -11,20 +11,22 @@ export function panCanvasValues(values, snapshot, dx, dy) {
   snapshot.x = x
   snapshot.y = y
   let changed = false
-  // A cyclic shift works directly in FFT storage order as well as display order.
-  // Split each row at the wrap, keeping modulo and interpolation out of the pixel loop.
-  for (let row = 0; row < size; row++) {
+  // Stop comparing as soon as the shifted snapshot differs. This preserves
+  // no-op handling for empty/periodic grids without a JS write for every pixel.
+  for (let row = 0; row < size && !changed; row++) {
     const target = row * size, source = ((row - y + size) % size) * size
     for (let column = 0; column < x; column++) {
-      const index = target + column, value = original[source + size - x + column]
-      if (values[index] !== value) changed = true
-      values[index] = value
+      if (values[target + column] !== original[source + size - x + column]) { changed = true; break }
     }
-    for (let column = x; column < size; column++) {
-      const index = target + column, value = original[source + column - x]
-      if (values[index] !== value) changed = true
-      values[index] = value
+    if (!changed) for (let column = x; column < size; column++) {
+      if (values[target + column] !== original[source + column - x]) { changed = true; break }
     }
   }
-  return { bounds: changed ? { left: 0, top: 0, right: size - 1, bottom: size - 1 } : null }
+  if (!changed) return { bounds: null }
+  for (let row = 0; row < size; row++) {
+    const target = row * size, source = ((row - y + size) % size) * size
+    if (x) values.set(original.subarray(source + size - x, source + size), target)
+    values.set(original.subarray(source, source + size - x), target + x)
+  }
+  return { bounds: { left: 0, top: 0, right: size - 1, bottom: size - 1 } }
 }

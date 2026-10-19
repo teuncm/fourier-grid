@@ -71,3 +71,14 @@ test('Pan rejects non-finite offsets before modifying the gesture', () => {
   assert.equal(snapshot.x, 0)
   assert.equal(snapshot.y, 0)
 })
+
+test('Native Pan row copies preserve periodic no-ops and reversals after an early mismatch', () => {
+  const size = 8, values = Float64Array.from({ length: size * size }, (_, i) => i % 2), original = values.slice()
+  const snapshot = createCanvasPan(values, size)
+  assert.equal(panCanvasValues(values, snapshot, 2, 3).bounds, null)
+  assert.ok(panCanvasValues(values, snapshot, 1, 3).bounds)
+  for (let i = 0; i < values.length; i++) assert.equal(values[i], 1 - original[i])
+  assert.equal(panCanvasValues(values, snapshot, 3, 4).bounds, null)
+  assert.ok(panCanvasValues(values, snapshot, 0, 0).bounds)
+  assert.deepEqual(values, original)
+})

@@ -1,3 +1,4 @@
+import { isFieldBrush, usesStrokeMask } from './brush-modes.js'
 import { paintBrushStroke } from './brushes.js'
 import { displayToIndex, valueRange } from './grid.js'
 
@@ -50,14 +51,14 @@ function getMapping(size, repeat, point) {
 
 export function paintRepeatedStroke(values, size, from, to, brush, value, origin, repeat, options = {}) {
   const layout = repeatLayout(size, repeat)
-  if (layout.columns === 1 && layout.rows === 1) return paintBrushStroke(values, size, from, to, brush, value, origin, options)
+  if (brush.shape === 'fill' || (layout.columns === 1 && layout.rows === 1)) return paintBrushStroke(values, size, from, to, brush, value, origin, options)
   const { sources, sourceMask, source, tiles } = getMapping(size, repeat, brush.mode === 'wipe' ? to : origin || from)
   if (workspace?.samples.length !== values.length) workspace = { samples: new Float64Array(values.length), marks: new Uint32Array(values.length), hits: [], epoch: 0 }
   if (++workspace.epoch > 0xffffffff) { workspace.marks.fill(0); workspace.epoch = 1 }
   const { samples, marks, hits, epoch } = workspace
   hits.length = 0
   const erase = options.erase || false, wiping = brush.mode === 'wipe' && !erase
-  const finite = !['wave', 'gaussian'].includes(brush.shape)
+  const finite = !isFieldBrush(brush.shape)
   paintBrushStroke(samples, size, from, to, { ...brush, mode: wiping ? 'wipe' : 'paste' }, value, origin || from, {
     erase, sampleOnly: true,
     onSample(index, sample) {
@@ -67,13 +68,14 @@ export function paintRepeatedStroke(values, size, from, to, brush, value, origin
       marks[index] = epoch
     },
   })
-  const visited = brush.mode === 'add' && !erase ? options.visited || new Uint8Array(values.length) : null
+  const multiplying = brush.mode === 'multiply' && !erase
+  const visited = usesStrokeMask(brush.mode) && !erase ? options.visited || new Uint8Array(values.length) : null
   let left = size, top = size, right = -1, bottom = -1
   let oldMin = Infinity, oldMax = -Infinity, newMin = Infinity, newMax = -Infinity
   let oldMinCount = 0, oldMaxCount = 0, newMinCount = 0, newMaxCount = 0
   function write(index, sample, x, y) {
     const previous = values[index]
-    if (visited) { if (visited[index]) return; visited[index] = 1; sample += previous }
+    if (visited) { if (visited[index]) return; visited[index] = 1; sample = multiplying ? previous * sample : previous + sample }
     if (sample === previous) return
     values[index] = sample
     if (previous < oldMin) { oldMin = previous; oldMinCount = 1 } else if (previous === oldMin) oldMinCount++
@@ -85,18 +87,25 @@ export function paintRepeatedStroke(values, size, from, to, brush, value, origin
   }
   // Wipe clears once before placing every copy, including untouched tiles.
   if (wiping) for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) write(displayToIndex(x, y, size), 0, x, y)
+  const copied = brush.noise ? new Uint8Array(values.length) : null
   for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) {
     const sourceIndex = sources[y * size + x]
-    if (marks[sourceIndex] === epoch) write(displayToIndex(x, y, size), samples[sourceIndex], x, y)
+    if (marks[sourceIndex] === epoch) {
+      const index = displayToIndex(x, y, size)
+      if (copied) copied[index] = 1
+      write(index, samples[sourceIndex], x, y)
+    }
   }
   // A narrow destination tile can miss a source pixel during inverse sampling.
-  // Seed its nearest cell too; the Add mask deduplicates both passes.
+  // Seed its nearest cell too; the stroke mask deduplicates both passes.
   if (finite) for (const tile of tiles) for (const index of hits) {
     const sx = (index % size + Math.floor(size / 2)) % size
     const sy = (Math.floor(index / size) + Math.floor(size / 2)) % size
     const x = tile.left + Math.min(tile.width - 1, Math.floor((sx - source.left + .5) * tile.sx))
     const y = tile.top + Math.min(tile.height - 1, Math.floor((sy - source.top + .5) * tile.sy))
-    write(displayToIndex(x, y, size), samples[index], x, y)
+    const destination = displayToIndex(x, y, size)
+    if (copied) { if (copied[destination]) continue; copied[destination] = 1 }
+    write(destination, samples[index], x, y)
   }
   return { bounds: right < 0 ? null : { left, top, right, bottom }, oldMin, oldMax, newMin, newMax, oldMinCount, oldMaxCount, newMinCount, newMaxCount, range: wiping ? valueRange(values) : null }
 }

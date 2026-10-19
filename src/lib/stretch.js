@@ -1,4 +1,4 @@
-import { displayToIndex } from './grid.js'
+export { createCanvasSnapshot as createCanvasStretch } from './canvas-snapshot.js'
 
 export function stretchFromDrag(dx, dy, size) {
   if (![dx, dy, size].every(Number.isFinite) || size < 1) throw new RangeError('Stretch drag must be finite and grid size positive.')
@@ -8,26 +8,22 @@ export function stretchFromDrag(dx, dy, size) {
   return { a: scaleX, b: 0, c: 0, d: scaleY, scaleX, scaleY }
 }
 
-export function createCanvasStretch(values, size) {
-  const original = values.slice(), stride = size + 2
-  const pixels = new Float64Array(stride * stride)
-  for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) pixels[(y + 1) * stride + x + 1] = values[displayToIndex(x, y, size)]
-  return { size, stride, original, pixels, anchor: { x: Math.floor(size / 2), y: Math.floor(size / 2) } }
-}
-
 export function stretchCanvasValues(values, snapshot, matrix) {
   const { a, b, c, d } = matrix
   const determinant = a * d - b * c
   if (![a, b, c, d, determinant].every(Number.isFinite) || determinant <= 1e-12) throw new RangeError('Stretch must have a finite, positive scale.')
   const { size, stride, original, pixels, anchor } = snapshot
+  const half = Math.ceil(size / 2)
   const identity = a === 1 && b === 0 && c === 0 && d === 1
   const ia = d / determinant, ib = -b / determinant, ic = -c / determinant, id = a / determinant
   let changed = false, min = Infinity, max = -Infinity, minCount = 0, maxCount = 0
   for (let y = 0; y < size; y++) {
+    const row = ((y + half) % size) * size, rowEnd = row + size
+    let index = row + half
     let sx = anchor.x - anchor.x * ia + (y - anchor.y) * ib
     let sy = anchor.y - anchor.x * ic + (y - anchor.y) * id
-    for (let x = 0; x < size; x++, sx += ia, sy += ic) {
-      const index = displayToIndex(x, y, size)
+    for (let x = 0; x < size; x++, index++, sx += ia, sy += ic) {
+      if (index === rowEnd) index = row
       let value = 0
       if (identity || (x === anchor.x && y === anchor.y)) value = original[index]
       else if (sx >= -1 && sy >= -1 && sx < size && sy < size) {

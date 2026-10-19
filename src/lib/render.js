@@ -1,3 +1,9 @@
+export function mergeBounds(first, second) {
+  if (!first) return second ? { ...second } : null
+  if (!second) return first
+  return { left: Math.min(first.left, second.left), top: Math.min(first.top, second.top), right: Math.max(first.right, second.right), bottom: Math.max(first.bottom, second.bottom) }
+}
+
 // Keep every edit made before the next animation frame, using bounded storage.
 export function createDirtyRegion() {
   let pending = null

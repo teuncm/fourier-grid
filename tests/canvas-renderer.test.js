@@ -38,3 +38,18 @@ test('GPU normalization retains extreme signs and matches the near-zero brightne
   const tiny = Float64Array.of(1e-15)
   assert.equal(stageTextureValues(tiny, 1, 1e-15, null, upload).data[0], Math.fround(1e-15))
 })
+
+test('Contiguous GPU row packing exactly matches Float32 normalization across wrap boundaries and scales', () => {
+  for (const size of [1, 2, 3, 7, 8, 127]) {
+    const values = Float64Array.from({ length: size * size }, (_, i) => Math.sin(i) * 1e12)
+    for (const peak of [0, 1, 3.7, 1e12]) for (const left of [0, Math.floor(size / 2), size - 1]) {
+      const bounds = { left, top: Math.floor(size / 3), right: size - 1, bottom: size - 1 }, upload = new Float32Array(values.length)
+      upload.fill(123)
+      const result = stageTextureValues(values, size, peak, bounds, upload)
+      const expected = [], half = Math.ceil(size / 2), scale = peak > 1e-12 ? peak : 1
+      for (let y = bounds.top; y <= bounds.bottom; y++) for (let x = bounds.left; x <= bounds.right; x++) expected.push(Math.fround(values[((y + half) % size) * size + (x + half) % size] / scale))
+      assert.deepEqual(result.data, Float32Array.from(expected))
+      assert.ok(upload.subarray(expected.length).every(value => value === 123))
+    }
+  }
+})
